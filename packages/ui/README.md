@@ -1,13 +1,13 @@
-## 前端运行方式：
+## 前端运行方式
 
-```
-cd d:\githubcode\Open_Source_Software_Project
+```bash
+cd /Users/luna/Desktop/研一/开源软件/Open_Source_Software_Project
 pnpm install
 pnpm --filter ui dev
 ```
 
-## 访问地址：
+## 访问地址
 
-```
-Local: http://127.0.0.1:5173/
+```bash
+http://127.0.0.1:5173/
 ```

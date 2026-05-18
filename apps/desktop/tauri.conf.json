@@ -1,0 +1,13 @@
+{
+  "package": {
+    "productName": "Mercury Desktop",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "bundle": {
+      "identifier": "com.example.mercury",
+      "active": true
+    }
+  }
+}
+

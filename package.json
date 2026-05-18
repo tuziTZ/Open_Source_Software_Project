@@ -5,5 +5,15 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "scripts": {
+    "dev:ui": "pnpm --filter ui dev",
+    "dev:backend": "cd backend && uv run uvicorn app.main:app --reload",
+    "gen:types": "bash packages/shared-types/scripts/generate.sh",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }

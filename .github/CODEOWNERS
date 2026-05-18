@@ -1,0 +1,23 @@
+# Default fallback: tech lead reviews anything not otherwise claimed
+*                                       @Luna1xiao
+
+# Backend modules
+/backend/app/                           @Luna1xiao
+/backend/feed_engine/                   @tuziTZ           @Luna1xiao
+/backend/db/                            @Annie191         @Luna1xiao
+/backend/content_cleaner/               @Kaleido66        @Luna1xiao
+/backend/agent_summary/                 @YWDJ123          @Luna1xiao
+/backend/agent_translation/             @jiaotangbuding177 @Luna1xiao
+/backend/llm_providers/                 @OrangerXu        @Luna1xiao
+
+# Frontend packages
+/packages/ui/                           @ddsplus          @Luna1xiao
+/packages/shared-types/                 @Luna1xiao
+/packages/ipc-client/                   @Luna1xiao
+
+# Desktop shell
+/apps/desktop/                          @OrangerXu        @Luna1xiao
+
+# Governance, CI, docs
+/.github/                               @hengyantu        @Luna1xiao
+/docs/                                  @Luna1xiao        @hengyantu
