@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent_summary.agent.summary_agent import SummaryAgent
 
-
 # 测试文章
 TEST_ARTICLE = """
 # 人工智能的发展
@@ -43,17 +42,17 @@ async def test_summary():
     print("=" * 60)
     print("agent_summary API 测试")
     print("=" * 60)
-    
+
     # 创建 Agent
     agent = SummaryAgent()
     print(f"LLM: {type(agent.llm).__name__}")
     print(f"文章长度: {len(TEST_ARTICLE)} 字符")
-    
+
     # 生成摘要
     print("\n正在生成摘要...")
     try:
         result = await agent.summarize("test-001", TEST_ARTICLE)
-        
+
         print("\n" + "-" * 60)
         print("测试结果:")
         print("-" * 60)
@@ -63,15 +62,15 @@ async def test_summary():
         print(f"Model: {result['model']}")
         print(f"Duration: {result['duration']:.2f}s")
         print(f"Steps: {result['steps']}")
-        print(f"\n摘要内容:")
+        print("\n摘要内容:")
         print(result['summary_text'])
         print("-" * 60)
         print("\n测试通过!")
-        
+
     except Exception as e:
         print(f"\n测试失败: {e}")
         return False
-    
+
     return True
 
 

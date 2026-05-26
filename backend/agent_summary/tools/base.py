@@ -1,9 +1,10 @@
 """工具基础设施"""
 
-from dataclasses import dataclass
-from typing import Callable, Any
-import inspect
 import asyncio
+import inspect
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 from ..core.config import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 
@@ -26,23 +27,23 @@ def tool(func=None, *, name=None, description=None):
         sig = inspect.signature(f)
         properties = {}
         required = []
-        
+
         for param_name, param in sig.parameters.items():
             param_type = param.annotation
-            if param_type == str:
+            if param_type is str:
                 properties[param_name] = {"type": "string"}
-            elif param_type == int:
+            elif param_type is int:
                 properties[param_name] = {"type": "integer"}
-            elif param_type == float:
+            elif param_type is float:
                 properties[param_name] = {"type": "number"}
-            elif param_type == bool:
+            elif param_type is bool:
                 properties[param_name] = {"type": "boolean"}
             else:
                 properties[param_name] = {"type": "string"}
-            
+
             if param.default is inspect.Parameter.empty:
                 required.append(param_name)
-        
+
         f._tool_meta = Tool(
             name=name or f.__name__,
             description=desc,
@@ -50,7 +51,7 @@ def tool(func=None, *, name=None, description=None):
             func=f,
         )
         return f
-    
+
     if func is not None:
         return decorator(func)
     return decorator
@@ -58,18 +59,18 @@ def tool(func=None, *, name=None, description=None):
 
 class ToolRegistry:
     """工具注册表"""
-    
+
     def __init__(self):
         self._tools: dict[str, Tool] = {}
-    
+
     def register(self, tool: Tool):
         """注册工具"""
         self._tools[tool.name] = tool
-    
+
     def get(self, name: str) -> Tool | None:
         """获取工具"""
         return self._tools.get(name)
-    
+
     def list_tools(self) -> list[dict]:
         """返回工具列表"""
         return [
@@ -84,7 +85,7 @@ async def invoke_tool_with_retry(tool: Tool, **kwargs) -> Any:
         try:
             result = await asyncio.wait_for(tool.func(**kwargs), timeout=tool.timeout)
             return result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             if attempt == tool.max_retries - 1:
                 raise
         except Exception:

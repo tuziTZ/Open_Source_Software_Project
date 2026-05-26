@@ -1,7 +1,8 @@
 """状态定义"""
 
-from pydantic import BaseModel
 from typing import Any
+
+from pydantic import BaseModel
 
 
 class ArticleProfile(BaseModel):

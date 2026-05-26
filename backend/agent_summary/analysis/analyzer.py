@@ -14,7 +14,7 @@ def analyze(markdown: str) -> ArticleProfile:
     section_count = len(headings)
     article_type = classify_article_type(markdown)
     needs_context = length > 5000 or article_type == "news"
-    
+
     return ArticleProfile(
         language=language,
         length=length,

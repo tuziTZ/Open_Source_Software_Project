@@ -1,7 +1,7 @@
 """摘要策略"""
 
-from ..core.state import ArticleProfile
 from ..core.config import DIRECT_THRESHOLD, SINGLE_PASS_THRESHOLD
+from ..core.state import ArticleProfile
 
 
 def select_strategy(profile: ArticleProfile) -> str:

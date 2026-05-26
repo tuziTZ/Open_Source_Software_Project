@@ -1,6 +1,6 @@
 """执行追踪"""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
