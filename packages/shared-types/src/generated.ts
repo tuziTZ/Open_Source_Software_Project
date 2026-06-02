@@ -141,6 +141,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/content/clean": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clean Content */
+        post: operations["clean_content_content_clean_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content/entries/{article_id}/clean": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Clean Stored Content */
+        get: operations["clean_stored_content_content_entries__article_id__clean_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/summary/generate": {
         parameters: {
             query?: never;
@@ -182,6 +216,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CleanContentRequest */
+        CleanContentRequest: {
+            /** Raw Html */
+            raw_html: string;
+            /** Source Url */
+            source_url: string;
+            /** Article Id */
+            article_id?: string | null;
+            /** Content Hash */
+            content_hash?: string | null;
+        };
+        /** CleanContentResponse */
+        CleanContentResponse: {
+            /** Article Id */
+            article_id?: string | null;
+            /** Cleaned Html */
+            cleaned_html: string;
+            /** Cleaned Markdown */
+            cleaned_markdown: string;
+            /** Plain Text */
+            plain_text: string;
+            /** Content Hash */
+            content_hash?: string | null;
+            /** Word Count */
+            word_count: number;
+            /** Reading Time Minutes */
+            reading_time_minutes: number;
+        };
         /** Feed */
         Feed: {
             /** Id */
@@ -590,6 +652,70 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clean_content_content_clean_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CleanContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanContentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clean_stored_content_content_entries__article_id__clean_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanContentResponse"];
                 };
             };
             /** @description Validation Error */
