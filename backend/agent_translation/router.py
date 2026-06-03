@@ -1,3 +1,3 @@
-from fastapi import APIRouter
+from .http.router import router
 
-router = APIRouter(prefix="/agents/translation", tags=["agent-translation"])
+__all__ = ["router"]
