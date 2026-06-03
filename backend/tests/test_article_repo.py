@@ -39,7 +39,11 @@ def test_save_article_updates_existing_row(tmp_path) -> None:
 
     save_article(updated, db_path)
 
-    assert get_article("article-1", db_path) == updated
+    saved = get_article("article-1", db_path)
+    assert saved is not None
+    assert saved.title == "Updated title"
+    assert saved.is_read is True
+    assert saved.reader_html == "<p>Hello Mercury</p>"
 
 
 def test_save_article_preserves_raw_html_for_cleaner(tmp_path) -> None:
@@ -55,6 +59,33 @@ def test_save_article_preserves_raw_html_for_cleaner(tmp_path) -> None:
     assert content.raw_html == "<main><p>Hello Mercury</p></main>"
     assert content.cleaned_html == ""
     assert get_article("article-1", db_path) == article
+
+
+def test_save_article_does_not_overwrite_existing_cleaned_content(tmp_path) -> None:
+    db_path = tmp_path / "mercury-test.db"
+    init_db(db_path)
+    save_feed(_feed(), db_path)
+    save_article(_article(reader_html="<main><p>Original raw</p></main>"), db_path)
+    save_article_content(
+        article_id="article-1",
+        raw_html="<main><p>Original raw</p></main>",
+        cleaned_html="<p>Cleaned content</p>",
+        cleaned_markdown="Cleaned content",
+        plain_text="Cleaned content",
+        db_path=db_path,
+        content_hash="hash-1",
+    )
+
+    save_article(
+        _article(title="Updated title", reader_html="<main><p>New raw</p></main>"),
+        db_path,
+    )
+
+    content = get_article_content("article-1", db_path)
+    assert content is not None
+    assert content.raw_html == "<main><p>Original raw</p></main>"
+    assert content.cleaned_html == "<p>Cleaned content</p>"
+    assert get_article("article-1", db_path).reader_html == "<p>Cleaned content</p>"
 
 
 def test_save_articles_batches_multiple_entries(tmp_path) -> None:

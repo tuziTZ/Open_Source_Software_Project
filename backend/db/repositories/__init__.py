@@ -22,6 +22,7 @@ from db.repositories.config_repo import delete_app_config, get_app_config, set_a
 from db.repositories.feed_repo import (
     delete_feed,
     get_feed,
+    get_feed_sync_metadata,
     query_feeds,
     save_feed,
     save_feeds,
@@ -47,6 +48,7 @@ __all__ = [
     "get_article_content",
     "get_app_config",
     "get_feed",
+    "get_feed_sync_metadata",
     "get_latest_agent_result",
     "get_provider_settings",
     "list_articles",

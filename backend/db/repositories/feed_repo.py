@@ -78,6 +78,34 @@ def update_feed_sync_metadata(
     return cursor.rowcount > 0
 
 
+def get_feed_sync_metadata(
+    feed_id: str,
+    db_path: Path | str | None = None,
+) -> dict[str, str | None] | None:
+    """Return HTTP sync metadata used by the feed engine for conditional fetches."""
+    with connection(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT
+                last_fetched_at,
+                etag,
+                last_modified
+            FROM feeds
+            WHERE id = ?
+            """,
+            (feed_id,),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "last_fetched_at": row["last_fetched_at"],
+        "etag": row["etag"],
+        "last_modified": row["last_modified"],
+    }
+
+
 def query_feeds(
     keyword: str | None = None,
     db_path: Path | str | None = None,

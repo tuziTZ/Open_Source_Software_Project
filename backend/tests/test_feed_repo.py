@@ -2,6 +2,7 @@ from app.schemas.feed import Feed
 from db import (
     delete_feed,
     get_feed,
+    get_feed_sync_metadata,
     init_db,
     query_feeds,
     save_feed,
@@ -152,3 +153,16 @@ def test_update_feed_sync_metadata(tmp_path) -> None:
         is True
     )
     assert get_feed("feed-1", db_path).status == "success"
+
+    assert get_feed_sync_metadata("feed-1", db_path) == {
+        "last_fetched_at": "2026-05-25T12:00:00Z",
+        "etag": "etag-1",
+        "last_modified": "Mon, 25 May 2026 12:00:00 GMT",
+    }
+
+
+def test_get_feed_sync_metadata_returns_none_for_missing_feed(tmp_path) -> None:
+    db_path = tmp_path / "mercury-test.db"
+    init_db(db_path)
+
+    assert get_feed_sync_metadata("missing", db_path) is None

@@ -492,9 +492,7 @@ def _save_article(conn: sqlite3.Connection, entry: Entry) -> None:
             updated_at
         )
         VALUES (?, ?, '', CURRENT_TIMESTAMP)
-        ON CONFLICT(article_id) DO UPDATE SET
-            raw_html = excluded.raw_html,
-            updated_at = CURRENT_TIMESTAMP
+        ON CONFLICT(article_id) DO NOTHING
         """,
         (entry.id, entry.reader_html),
     )

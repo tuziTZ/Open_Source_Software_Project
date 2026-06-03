@@ -103,6 +103,24 @@ update_feed_sync_metadata(
 )
 ```
 
+兼容约定：
+
+- Feed Engine 初次保存 `Entry` 时，`Entry.reader_html` 会作为 `article_content.raw_html` 的初始值写入。
+- 这让 Cleaner 可以通过 `get_article_content(article_id).raw_html` 读取 Feed 原始 HTML。
+- 后续 Cleaner 调用 `save_article_content()` 后，会写入 cleaned HTML / Markdown / plain text。
+- 再次 `save_article()` 只更新文章 metadata 和搜索标题/摘要，不会覆盖已存在的 `raw_html` 或 cleaned content。
+
+读取 Feed 同步元数据：
+
+```py
+from db import get_feed_sync_metadata
+
+metadata = get_feed_sync_metadata("feed-001")
+if metadata is not None:
+    etag = metadata["etag"]
+    last_modified = metadata["last_modified"]
+```
+
 读取 Feed 列表：
 
 ```py
@@ -501,6 +519,7 @@ save_feeds()
 get_feed()
 query_feeds()
 update_feed_sync_metadata()
+get_feed_sync_metadata()
 delete_feed()
 ```
 

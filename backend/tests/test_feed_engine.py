@@ -110,6 +110,12 @@ def test_sync_feed_uses_storage_upsert(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(db, "save_articles", lambda articles: saved.extend(articles), raising=False)
     monkeypatch.setattr(
         db,
+        "get_feed_sync_metadata",
+        lambda feed_id: {"etag": None, "last_modified": None} if feed_id == "feed-001" else None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        db,
         "update_feed_sync_metadata",
         lambda **kwargs: metadata.append(kwargs),
         raising=False,

@@ -64,8 +64,10 @@ async def sync_feed(feed_id: str) -> SyncResult:
             context={"feed_id": feed_id},
         )
 
-    etag = getattr(feed, "etag", None)
-    last_modified = getattr(feed, "last_modified", None)
+    get_sync_metadata = require_db_function("get_feed_sync_metadata")
+    sync_metadata = get_sync_metadata(feed_id) or {}
+    etag = sync_metadata.get("etag")
+    last_modified = sync_metadata.get("last_modified")
     try:
         response = await fetch_feed(feed.feed_url, etag=etag, last_modified=last_modified)
     except FeedEngineError:
