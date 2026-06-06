@@ -92,7 +92,13 @@ def build_binary(output_dir: str) -> None:
             "PyInstaller",
             "--noconfirm",
             "--clean",
-            "--onefile",
+            # --onedir (not --onefile): a one-file binary re-extracts its whole
+            # Python runtime to a temp dir on EVERY launch, which made cold
+            # startup blow past the desktop shell's health-check window. onedir
+            # keeps the runtime unpacked next to the executable, so startup is
+            # near-instant and reliable. Output: dist/mercury-backend/ holding
+            # the `mercury-backend` executable plus an `_internal/` folder.
+            "--onedir",
             "--name",
             "mercury-backend",
             str(SIDECAR_ENTRY),

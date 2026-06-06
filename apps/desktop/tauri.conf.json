@@ -16,7 +16,7 @@
     "active": true,
     "targets": ["nsis"],
     "resources": {
-      "../../backend/dist": "binaries"
+      "../../backend/dist/mercury-backend": "binaries"
     },
     "useLocalToolsDir": true
   }
