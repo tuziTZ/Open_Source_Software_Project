@@ -9,6 +9,7 @@ from app.schemas.content import ArticleContent
 from app.schemas.digest import DigestTemplate
 from app.schemas.entry import Entry
 from app.schemas.feed import Feed
+from app.schemas.provider import ProviderSummaryResponse, ProviderUpsertRequest
 from app.schemas.tag import Tag
 from app.schemas.usage import UsageBucket, UsageReport
 
@@ -18,6 +19,8 @@ __all__ = [
     "Entry",
     "Feed",
     "LongTaskStatus",
+    "ProviderSummaryResponse",
+    "ProviderUpsertRequest",
     "SummaryRequest",
     "SummaryResult",
     "Tag",

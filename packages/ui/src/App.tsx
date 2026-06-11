@@ -46,6 +46,9 @@ import type {
   FeedScope,
   LocaleCode,
   ModalState,
+  ProviderDraft,
+  ProviderKind,
+  ProviderSummary,
   ReaderMode,
   ReaderThemeSettings,
   SidebarSection,
@@ -53,6 +56,13 @@ import type {
   Tag
 } from "./domain/types";
 import { translate } from "./i18n/messages";
+import {
+  createProviderConfig,
+  getApiErrorMessage,
+  loadProviders,
+  removeProviderConfig,
+  updateProviderConfig
+} from "./services/api";
 import { readStoredBoolean, readStoredNumber, writeStoredBoolean, writeStoredNumber } from "./services/storage";
 
 const maxSidebarTags = 5;
@@ -1450,6 +1460,99 @@ function SettingsModal(props: {
   onModal: (modal: ModalState) => void;
 }) {
   const tabs: AppState["settingsTab"][] = ["general", "reader", "agents", "digest"];
+  const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
+  const [selectedProviderName, setSelectedProviderName] = useState<string>("__new__");
+  const [draft, setDraft] = useState<ProviderDraft>(() => emptyProviderDraft());
+
+  useEffect(() => {
+    if (props.state.settingsTab !== "agents") {
+      return;
+    }
+    let cancelled = false;
+    setProvidersLoading(true);
+    setProviderError(null);
+    void loadProviders()
+      .then((items) => {
+        if (cancelled) {
+          return;
+        }
+        setProviders(items);
+        const nextSelected = pickProviderSelection(items, selectedProviderName);
+        setSelectedProviderName(nextSelected);
+        setDraft(providerDraftFromSelection(items, nextSelected));
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setProviderError(getApiErrorMessage(error));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setProvidersLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [props.state.settingsTab]);
+
+  useEffect(() => {
+    if (props.state.settingsTab !== "agents") {
+      return;
+    }
+    setDraft(providerDraftFromSelection(providers, selectedProviderName));
+  }, [props.state.settingsTab, providers, selectedProviderName]);
+
+  async function saveProvider() {
+    if (!draft.name.trim() || !draft.model.trim()) {
+      setProviderError(props.t("requestFailed"));
+      return;
+    }
+
+    setProvidersLoading(true);
+    setProviderError(null);
+    try {
+      const isNew = selectedProviderName === "__new__";
+      const saved = isNew
+        ? await createProviderConfig(draft)
+        : await updateProviderConfig(selectedProviderName, draft);
+      const next = await loadProviders();
+      setProviders(next);
+      setSelectedProviderName(saved.name);
+      setDraft(providerDraftFromSelection(next, saved.name));
+    } catch (error) {
+      setProviderError(getApiErrorMessage(error));
+    } finally {
+      setProvidersLoading(false);
+    }
+  }
+
+  async function deleteProviderItem() {
+    if (selectedProviderName === "__new__") {
+      setDraft(emptyProviderDraft());
+      return;
+    }
+
+    setProvidersLoading(true);
+    setProviderError(null);
+    try {
+      await removeProviderConfig(selectedProviderName);
+      const next = await loadProviders();
+      setProviders(next);
+      const nextSelected = pickProviderSelection(next, "__new__");
+      setSelectedProviderName(nextSelected);
+      setDraft(providerDraftFromSelection(next, nextSelected));
+    } catch (error) {
+      setProviderError(getApiErrorMessage(error));
+    } finally {
+      setProvidersLoading(false);
+    }
+  }
+
   return (
     <div className="settings-layout">
       <div className="tab-list">
@@ -1496,21 +1599,109 @@ function SettingsModal(props: {
         )}
         {props.state.settingsTab === "agents" && (
           <>
-            <SettingRow label={props.t("provider")}>
-              <select defaultValue="openai">
-                <option value="openai">OpenAI</option>
-                <option value="local">{props.t("localProvider")}</option>
+            <SettingRow label={props.t("providers")}>
+              <div className="provider-toolbar">
+                <select value={selectedProviderName} onChange={(event) => setSelectedProviderName(event.target.value)}>
+                  <option value="__new__">{props.t("newProvider")}</option>
+                  {providers.map((provider) => (
+                    <option key={provider.name} value={provider.name}>
+                      {provider.name}
+                      {provider.isDefault ? " (Default)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedProviderName("__new__");
+                    setDraft(emptyProviderDraft());
+                    setProviderError(null);
+                  }}
+                >
+                  {props.t("addProvider")}
+                </button>
+              </div>
+            </SettingRow>
+            <SettingRow label={props.t("providerName")}>
+              <input
+                value={draft.name}
+                onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                disabled={selectedProviderName !== "__new__"}
+              />
+            </SettingRow>
+            <SettingRow label={props.t("providerKind")}>
+              <select
+                value={draft.kind}
+                onChange={(event) => setDraft((current) => ({ ...current, kind: event.target.value as ProviderKind }))}
+              >
+                <option value="openai_compatible">{props.t("openaiCompatible")}</option>
+                <option value="anthropic">{props.t("anthropic")}</option>
+                <option value="ollama">{props.t("ollama")}</option>
               </select>
             </SettingRow>
             <SettingRow label={props.t("model")}>
-              <input defaultValue="gpt-5.2" />
+              <input value={draft.model} onChange={(event) => setDraft((current) => ({ ...current, model: event.target.value }))} />
+            </SettingRow>
+            <SettingRow label="Base URL">
+              <input value={draft.baseUrl} onChange={(event) => setDraft((current) => ({ ...current, baseUrl: event.target.value }))} />
+            </SettingRow>
+            <SettingRow label={props.t("apiKey")}>
+              <div className="provider-secret-row">
+                <input
+                  type="password"
+                  value={draft.apiKey}
+                  placeholder={selectedProviderName !== "__new__" && selectedProviderHasKey(providers, selectedProviderName) ? props.t("storedSecret") : ""}
+                  onChange={(event) => setDraft((current) => ({ ...current, apiKey: event.target.value, clearApiKey: false }))}
+                />
+                {selectedProviderName !== "__new__" && selectedProviderHasKey(providers, selectedProviderName) && (
+                  <label className="check-row compact">
+                    <input
+                      type="checkbox"
+                      checked={draft.clearApiKey}
+                      onChange={(event) => setDraft((current) => ({ ...current, clearApiKey: event.target.checked, apiKey: "" }))}
+                    />
+                    {props.t("clearStoredApiKey")}
+                  </label>
+                )}
+              </div>
+            </SettingRow>
+            <SettingRow label={props.t("apiKeyHeader")}>
+              <input
+                value={draft.apiKeyHeader}
+                onChange={(event) => setDraft((current) => ({ ...current, apiKeyHeader: event.target.value }))}
+              />
+            </SettingRow>
+            <SettingRow label={props.t("providerDefault")}>
+              <label className="check-row compact">
+                <input
+                  type="checkbox"
+                  checked={draft.isDefault}
+                  onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))}
+                />
+                {props.t("providerDefault")}
+              </label>
             </SettingRow>
             <SettingRow label={props.t("availability")}>
-              <span className="status-pill success">{props.t("ready")}</span>
+              <span className={`status-pill ${providers.length > 0 ? "success" : ""}`}>
+                {providersLoading
+                  ? props.t("loading")
+                  : providers.length > 0
+                    ? props.t("configuredProviders", { count: providers.length })
+                    : props.t("noProvidersConfigured")}
+              </span>
             </SettingRow>
             <SettingRow label={props.t("fallback")}>
-              <span>{"Summary -> Translation -> Tagging"}</span>
+              <span>{providers.find((provider) => provider.isDefault)?.name ?? "LLMClient / mock"}</span>
             </SettingRow>
+            {providerError && <p className="panel-status">{providerError}</p>}
+            <div className="modal-actions">
+              <button type="button" onClick={() => void deleteProviderItem()} disabled={providersLoading}>
+                {props.t("deleteProviderConfig")}
+              </button>
+              <button type="button" onClick={() => void saveProvider()} disabled={providersLoading}>
+                {props.t("saveProvider")}
+              </button>
+            </div>
           </>
         )}
         {props.state.settingsTab === "digest" && (
@@ -1876,4 +2067,45 @@ function stripHtml(html: string): string {
 
 function capitalize(value: string): string {
   return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
+}
+
+function emptyProviderDraft(): ProviderDraft {
+  return {
+    name: "",
+    kind: "openai_compatible",
+    model: "",
+    baseUrl: "",
+    apiKey: "",
+    apiKeyHeader: "",
+    isDefault: false,
+    clearApiKey: false
+  };
+}
+
+function providerDraftFromSelection(providers: ProviderSummary[], providerName: string): ProviderDraft {
+  const provider = providers.find((candidate) => candidate.name === providerName);
+  if (!provider) {
+    return emptyProviderDraft();
+  }
+  return {
+    name: provider.name,
+    kind: provider.kind,
+    model: provider.model,
+    baseUrl: provider.baseUrl ?? "",
+    apiKey: "",
+    apiKeyHeader: provider.apiKeyHeader ?? "",
+    isDefault: provider.isDefault,
+    clearApiKey: false
+  };
+}
+
+function pickProviderSelection(providers: ProviderSummary[], currentSelection: string): string {
+  if (providers.some((provider) => provider.name === currentSelection)) {
+    return currentSelection;
+  }
+  return providers.find((provider) => provider.isDefault)?.name ?? providers[0]?.name ?? "__new__";
+}
+
+function selectedProviderHasKey(providers: ProviderSummary[], providerName: string): boolean {
+  return providers.some((provider) => provider.name === providerName && provider.hasApiKey);
 }

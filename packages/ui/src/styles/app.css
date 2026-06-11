@@ -879,6 +879,17 @@ textarea {
   padding: 4px 8px;
 }
 
+.provider-toolbar,
+.provider-secret-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.check-row.compact {
+  width: fit-content;
+}
+
 .slider-row {
   display: grid;
   grid-template-columns: 1fr 52px;

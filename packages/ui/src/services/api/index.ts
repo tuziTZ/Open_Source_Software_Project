@@ -1,21 +1,25 @@
 import {
+  createProvider,
   cleanStoredContent,
+  deleteProvider,
   createFeed,
   deleteEntry,
   generateSummary,
   getEntries,
   getEntry,
   getFeeds,
+  getProviders,
   getTags,
   importOpml,
   IpcError,
   setEntryReadState,
   setEntryStarState,
-  syncAllFeeds
+  syncAllFeeds,
+  updateProvider
 } from "@mercury/ipc-client";
 import type { components } from "@mercury/shared-types";
 
-import type { Entry, Feed, Tag } from "../../domain/types";
+import type { Entry, Feed, ProviderDraft, ProviderSummary, Tag } from "../../domain/types";
 import { mercuryClient } from "./client";
 import { toUiEntry, toUiFeed, toUiTag } from "./mappers";
 
@@ -75,6 +79,49 @@ export async function ensureEntryContent(entryId: string): Promise<components["s
   return cleanStoredContent(mercuryClient, entryId);
 }
 
+export async function loadProviders(): Promise<ProviderSummary[]> {
+  const providers = await getProviders(mercuryClient);
+  return providers.map((provider) => ({
+    name: provider.name,
+    kind: provider.kind,
+    model: provider.model,
+    baseUrl: provider.base_url ?? null,
+    apiKeyHeader: provider.api_key_header ?? null,
+    isDefault: provider.is_default,
+    hasApiKey: provider.has_api_key
+  }));
+}
+
+export async function createProviderConfig(draft: ProviderDraft): Promise<ProviderSummary> {
+  const provider = await createProvider(mercuryClient, toProviderRequest(draft));
+  return {
+    name: provider.name,
+    kind: provider.kind,
+    model: provider.model,
+    baseUrl: provider.base_url ?? null,
+    apiKeyHeader: provider.api_key_header ?? null,
+    isDefault: provider.is_default,
+    hasApiKey: provider.has_api_key
+  };
+}
+
+export async function updateProviderConfig(providerName: string, draft: ProviderDraft): Promise<ProviderSummary> {
+  const provider = await updateProvider(mercuryClient, providerName, toProviderRequest(draft));
+  return {
+    name: provider.name,
+    kind: provider.kind,
+    model: provider.model,
+    baseUrl: provider.base_url ?? null,
+    apiKeyHeader: provider.api_key_header ?? null,
+    isDefault: provider.is_default,
+    hasApiKey: provider.has_api_key
+  };
+}
+
+export async function removeProviderConfig(providerName: string): Promise<void> {
+  await deleteProvider(mercuryClient, providerName);
+}
+
 export function getApiErrorMessage(error: unknown): string {
   if (error instanceof IpcError) {
     if (hasDetail(error.body)) {
@@ -95,4 +142,17 @@ export function getApiErrorMessage(error: unknown): string {
 
 function hasDetail(value: unknown): value is { detail?: unknown } {
   return typeof value === "object" && value !== null && "detail" in value;
+}
+
+function toProviderRequest(draft: ProviderDraft): components["schemas"]["ProviderUpsertRequest"] {
+  return {
+    name: draft.name.trim(),
+    kind: draft.kind,
+    model: draft.model.trim(),
+    base_url: draft.baseUrl.trim() || null,
+    api_key: draft.apiKey.trim() || null,
+    api_key_header: draft.apiKeyHeader.trim() || null,
+    is_default: draft.isDefault,
+    clear_api_key: draft.clearApiKey
+  };
 }

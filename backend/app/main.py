@@ -7,6 +7,7 @@ from app.config import settings
 from app.lifespan import lifespan
 from app.routers.entries import router as entries_router
 from app.routers.feeds import router as feeds_router
+from app.routers.providers import router as providers_router
 from app.routers.tags import router as tags_router
 from content_cleaner.router import router as content_cleaner_router
 from feed_engine.router import router as feed_engine_router
@@ -28,6 +29,7 @@ app.add_middleware(
 app.include_router(feed_engine_router)
 app.include_router(feeds_router)
 app.include_router(tags_router)
+app.include_router(providers_router)
 app.include_router(entries_router)
 app.include_router(content_cleaner_router)
 app.include_router(agent_summary_router)
