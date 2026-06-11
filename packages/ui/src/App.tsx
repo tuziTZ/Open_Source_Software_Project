@@ -1075,7 +1075,7 @@ function ReaderDetail(props: {
         </div>
       )}
       <div className="article-header">
-        <div>
+        <div className="article-header-main">
           <h1>{entry.title}</h1>
           <p>
             {entry.author} · {formatDate(entry.publishedAt)}
