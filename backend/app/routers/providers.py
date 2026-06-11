@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException, Path
 
-from app.schemas.provider import ProviderSummaryResponse, ProviderUpsertRequest
+from app.schemas.provider import (
+    ProviderSummaryResponse,
+    ProviderUpsertRequest,
+)
 from llm_providers.base import ModelError, ProviderNotFoundError
 from llm_providers.config import ProviderConfig
 from llm_providers.registry import (
     add_provider,
-    list_providers,
     list_provider_summaries,
+    list_providers,
     remove_provider,
     update_provider,
 )
@@ -80,7 +83,10 @@ async def delete_provider(provider_name: str = Path(..., min_length=1)) -> dict[
     return {"deleted": True}
 
 
-def _to_provider_config(request: ProviderUpsertRequest, api_key: str | None = None) -> ProviderConfig:
+def _to_provider_config(
+    request: ProviderUpsertRequest,
+    api_key: str | None = None,
+) -> ProviderConfig:
     return ProviderConfig(
         name=request.name,
         kind=request.kind,
