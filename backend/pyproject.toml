@@ -29,6 +29,9 @@ desktop = [
 [tool.uv]
 package = false
 
+[tool.uv.pip]
+compile-bytecode = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
