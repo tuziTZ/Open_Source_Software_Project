@@ -995,6 +995,11 @@ function ReaderDetail(props: {
     void props.onEnsureEntryContent(entry.id);
   }, [entry?.id, entry?.readerHtml, props.onEnsureEntryContent]);
 
+  const translationHtmlRendered = useMemo(
+    () => (entry?.translationHtml ? markdownToHtml(entry.translationHtml) : ""),
+    [entry?.translationHtml]
+  );
+
   if (!entry) {
     return (
       <div className="reader-empty">
@@ -1007,10 +1012,6 @@ function ReaderDetail(props: {
   const articleHtml = translationMode === "translation" && entry.translationHtml ? entry.translationHtml : entry.readerHtml;
   const isTranslating = entry.translationStatus === "running";
   const showSplitTranslation = state.readerMode === "reader" && translationMode === "translation" && Boolean(entry.translationHtml);
-  const translationHtmlRendered = useMemo(
-    () => (entry.translationHtml ? markdownToHtml(entry.translationHtml) : ""),
-    [entry.translationHtml]
-  );
 
   async function toggleTranslation() {
     if (!entry) {
