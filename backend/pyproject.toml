@@ -1,3 +1,56 @@
+#[project]
+#name = "mercury-backend"
+#version = "0.1.0"
+#description = "Mercury RSS reader backend (FastAPI sidecar for Tauri)"
+#requires-python = ">=3.11"
+#dependencies = [
+#    "fastapi>=0.115",
+#    "uvicorn[standard]>=0.32",
+#    "httpx>=0.27",
+#    "pydantic>=2.9",
+#    "pydantic-settings>=2.6",
+#    "beautifulsoup4>=4.12",
+#    "bleach>=6.2",
+#    "lxml>=5.3",
+#    "markdownify>=1.1",
+#]
+#
+#[dependency-groups]
+#dev = [
+#    "pytest>=8.3",
+#    "pytest-asyncio>=0.24",
+#    "httpx>=0.27",
+#    "ruff>=0.7",
+#]
+#desktop = [
+#    "pyinstaller>=6.0",
+#]
+#
+#[tool.uv]
+#package = false
+#
+#[tool.uv.pip]
+#compile-bytecode = true
+#
+#[tool.ruff]
+#line-length = 100
+#target-version = "py311"
+#
+#[tool.ruff.lint]
+#select = ["E", "F", "I", "W", "UP", "B"]
+#
+#[tool.ruff.lint.per-file-ignores]
+#"agent_summary/test_api_summary.py" = ["E501"]
+#"agent_summary/tests/conftest.py" = ["E501"]
+#
+#[tool.pytest.ini_options]
+#testpaths = ["tests", "agent_summary/tests", "llm_providers/tests"]
+#pythonpath = ["."]
+#asyncio_mode = "auto"
+#asyncio_default_fixture_loop_scope = "function"
+#markers = [
+#    "network: tests that call live internet feed sources",
+#]
 [project]
 name = "mercury-backend"
 version = "0.1.0"
@@ -28,9 +81,6 @@ desktop = [
 
 [tool.uv]
 package = false
-
-[tool.uv.pip]
-compile-bytecode = true
 
 [tool.ruff]
 line-length = 100
