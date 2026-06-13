@@ -158,6 +158,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Providers */
+        get: operations["get_providers_providers_get"];
+        put?: never;
+        /** Create Provider */
+        post: operations["create_provider_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/{provider_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit Provider */
+        put: operations["edit_provider_providers__provider_name__put"];
+        post?: never;
+        /** Delete Provider */
+        delete: operations["delete_provider_providers__provider_name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/entries": {
         parameters: {
             query?: never;
@@ -272,6 +308,71 @@ export interface paths {
         put?: never;
         /** Generate Summary */
         post: operations["generate_summary_agents_summary_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/translation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Translate Article
+         * @description Translate an article to the target language.
+         *
+         *     The translation is performed using the specified (or default) LLM provider.
+         *     Results are persisted to the database.
+         *
+         *     Request:
+         *         {
+         *           "entry_id": "article-123",
+         *           "target_lang": "English",
+         *           "provider": "openai",        # optional, uses default if not specified
+         *           "model": "gpt-4"             # optional, uses provider default if not specified
+         *         }
+         *
+         *     Response on success (200):
+         *         {
+         *           "entry_id": "article-123",
+         *           "target_lang": "English",
+         *           "translation_html": "Translated content...",
+         *           "status": "success",
+         *           "provider": "openai",
+         *           "model": "gpt-4"
+         *         }
+         *
+         *     Response on translation failure (200 with status: failure):
+         *         {
+         *           "entry_id": "article-123",
+         *           "target_lang": "English",
+         *           "translation_html": "",
+         *           "status": "failure",
+         *           "provider": "openai",
+         *           "model": "gpt-4"
+         *         }
+         *
+         *     Error responses:
+         *         404: Article not found
+         *         409: Article has no content to translate
+         *
+         *     Args:
+         *         request: TranslationRequest with entry_id, target_lang, provider, model
+         *
+         *     Returns:
+         *         TranslationResult with translated content and status
+         *
+         *     Raises:
+         *         HTTPException 404: If article doesn't exist
+         *         HTTPException 409: If article has no content
+         */
+        post: operations["translate_article_agents_translation_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -494,6 +595,57 @@ export interface components {
             /** Entries */
             entries?: components["schemas"]["ParsedEntry"][];
         };
+        /**
+         * ProviderKind
+         * @enum {string}
+         */
+        ProviderKind: "openai_compatible" | "anthropic" | "ollama";
+        /** ProviderSummaryResponse */
+        ProviderSummaryResponse: {
+            /** Name */
+            name: string;
+            kind: components["schemas"]["ProviderKind"];
+            /** Model */
+            model: string;
+            /** Base Url */
+            base_url?: string | null;
+            /** Api Key Header */
+            api_key_header?: string | null;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * Has Api Key
+             * @default false
+             */
+            has_api_key: boolean;
+        };
+        /** ProviderUpsertRequest */
+        ProviderUpsertRequest: {
+            /** Name */
+            name: string;
+            kind: components["schemas"]["ProviderKind"];
+            /** Model */
+            model: string;
+            /** Base Url */
+            base_url?: string | null;
+            /** Api Key */
+            api_key?: string | null;
+            /** Api Key Header */
+            api_key_header?: string | null;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * Clear Api Key
+             * @default false
+             */
+            clear_api_key: boolean;
+        };
         /** SubscribeFeedRequest */
         SubscribeFeedRequest: {
             /** Url */
@@ -611,6 +763,35 @@ export interface components {
             usage_count: number;
             /** Unread Count */
             unread_count: number;
+        };
+        /** TranslationRequest */
+        TranslationRequest: {
+            /** Entry Id */
+            entry_id: string;
+            /** Target Lang */
+            target_lang: string;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+        };
+        /** TranslationResult */
+        TranslationResult: {
+            /** Entry Id */
+            entry_id: string;
+            /** Target Lang */
+            target_lang: string;
+            /** Translation Html */
+            translation_html: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "idle" | "queued" | "running" | "success" | "failure" | "cancelled";
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -906,6 +1087,127 @@ export interface operations {
             };
         };
     };
+    get_providers_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSummaryResponse"][];
+                };
+            };
+        };
+    };
+    create_provider_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderUpsertRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_provider_providers__provider_name__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderUpsertRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_provider_providers__provider_name__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_entries_entries_get: {
         parameters: {
             query?: {
@@ -1156,6 +1458,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SummaryResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    translate_article_agents_translation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TranslationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranslationResult"];
                 };
             };
             /** @description Validation Error */

@@ -1,5 +1,7 @@
 import {
+  createProvider,
   cleanStoredContent,
+  deleteProvider,
   createFeed,
   createProvider as createProviderClient,
   deleteEntry,
@@ -22,7 +24,7 @@ import {
 } from "@mercury/ipc-client";
 import type { components } from "@mercury/shared-types";
 
-import type { Entry, Feed, Tag } from "../../domain/types";
+import type { Entry, Feed, ProviderDraft, ProviderSummary, Tag } from "../../domain/types";
 import { mercuryClient } from "./client";
 import { toUiEntry, toUiFeed, toUiTag } from "./mappers";
 
@@ -64,6 +66,16 @@ export async function removeEntry(entryId: string): Promise<void> {
 
 export async function requestSummary(entryId: string): Promise<components["schemas"]["SummaryResult"]> {
   return generateSummary(mercuryClient, { entry_id: entryId });
+}
+
+export async function requestTranslation(
+  entryId: string,
+  targetLang: string
+): Promise<components["schemas"]["TranslationResult"]> {
+  return mercuryClient.request<
+    components["schemas"]["TranslationResult"],
+    components["schemas"]["TranslationRequest"]
+  >("POST", "/agents/translation", { body: { entry_id: entryId, target_lang: targetLang } });
 }
 
 export async function subscribeToFeed(url: string, sync = true): Promise<Feed> {
@@ -130,4 +142,17 @@ export function getApiErrorMessage(error: unknown): string {
 
 function hasDetail(value: unknown): value is { detail?: unknown } {
   return typeof value === "object" && value !== null && "detail" in value;
+}
+
+function toProviderRequest(draft: ProviderDraft): components["schemas"]["ProviderUpsertRequest"] {
+  return {
+    name: draft.name.trim(),
+    kind: draft.kind,
+    model: draft.model.trim(),
+    base_url: draft.baseUrl.trim() || null,
+    api_key: draft.apiKey.trim() || null,
+    api_key_header: draft.apiKeyHeader.trim() || null,
+    is_default: draft.isDefault,
+    clear_api_key: draft.clearApiKey
+  };
 }

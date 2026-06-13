@@ -7,6 +7,7 @@ export type ReaderMode = "reader" | "web" | "dual";
 export type ReaderToolbarPanel = "tags" | "note" | "theme" | null;
 export type ReportKind = "overview" | "provider" | "model" | "agent" | "comparison";
 export type LongTaskStatus = "idle" | "queued" | "running" | "success" | "failure" | "cancelled";
+export type ProviderKind = "openai_compatible" | "anthropic" | "ollama";
 
 export interface Feed {
   id: string;
@@ -69,6 +70,27 @@ export interface UsageReport {
   provider: string;
   model: string;
   agent: string;
+}
+
+export interface ProviderSummary {
+  name: string;
+  kind: ProviderKind;
+  model: string;
+  baseUrl: string | null;
+  apiKeyHeader: string | null;
+  isDefault: boolean;
+  hasApiKey: boolean;
+}
+
+export interface ProviderDraft {
+  name: string;
+  kind: ProviderKind;
+  model: string;
+  baseUrl: string;
+  apiKey: string;
+  apiKeyHeader: string;
+  isDefault: boolean;
+  clearApiKey: boolean;
 }
 
 export interface AppState {

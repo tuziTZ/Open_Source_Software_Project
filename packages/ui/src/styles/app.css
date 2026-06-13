@@ -219,6 +219,14 @@ textarea {
   font-size: 15px;
 }
 
+.pane-header h2,
+.entry-header h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sidebar-list {
   display: flex;
   flex-direction: column;
@@ -472,16 +480,22 @@ textarea {
 
 .article-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 12px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.article-header-main {
+  flex: 1;
+  min-width: 0;
 }
 
 .article-header h1 {
   margin: 0;
   font-size: 18px;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .article-header p {
@@ -493,7 +507,9 @@ textarea {
 .tag-chip-list {
   display: flex;
   flex-wrap: nowrap;
+  flex: 0 1 40%;
   gap: 6px;
+  min-width: 0;
   margin-left: auto;
   overflow: hidden;
 }
@@ -551,6 +567,31 @@ textarea {
 
 .reader-surface.mode-dual > * {
   width: 50%;
+}
+
+.reader-surface.split-translation > * {
+  width: 50%;
+}
+
+.reader-article.translation-pane {
+  border-left: 1px solid var(--color-border);
+}
+
+.icon-button.translate-button {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.icon-button .spin {
+  animation: reader-spin 0.9s linear infinite;
+}
+
+@keyframes reader-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .reader-article {
@@ -956,6 +997,17 @@ textarea {
   width: 100%;
   min-height: 30px;
   padding: 4px 8px;
+}
+
+.provider-toolbar,
+.provider-secret-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.check-row.compact {
+  width: fit-content;
 }
 
 .slider-row {

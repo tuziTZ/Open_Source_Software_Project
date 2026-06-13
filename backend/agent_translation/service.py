@@ -9,9 +9,9 @@ Responsible for:
 
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from app.schemas.agent import TranslationRequest, TranslationResult
-from app.schemas.common import LongTaskStatus
 from db import get_article, get_article_content, record_usage, save_agent_result
 from llm_providers import LLMProviderError, ProviderNotFoundError, get_provider
 

@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(feed_engine_router)
 app.include_router(feeds_router)
 app.include_router(tags_router)
+app.include_router(providers_router)
 app.include_router(entries_router)
 app.include_router(content_cleaner_router)
 app.include_router(agent_summary_router)

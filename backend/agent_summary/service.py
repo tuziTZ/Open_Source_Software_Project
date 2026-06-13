@@ -79,6 +79,23 @@ class SummaryService:
             provider = ModelOverrideProvider(provider, request.model)
         return _instantiate_agent(self.agent_factory, llm_provider=provider)
 
+    def _resolve_registered_provider(self, request: SummaryRequest):
+        try:
+            if request.provider is not None:
+                config = _resolve_config_name(request.provider.strip())
+            elif load_providers_from_config():
+                config = _resolve_config_name(None)
+            else:
+                return None
+        except ProviderNotFoundError:
+            return None
+
+        if request.model:
+            config = config.model_copy(update={"model": request.model})
+
+        provider = _build_provider(config)
+        return _ProviderAdapter(provider.name, provider.model, provider)
+
     def _resolve_content(self, entry_id: str, reader_html: str) -> str:
         stored_content = get_article_content(entry_id)
         if stored_content is not None:
@@ -146,3 +163,17 @@ def _instantiate_agent(agent_factory, **kwargs):
         return agent_factory(**kwargs)
     except TypeError:
         return agent_factory()
+
+
+class _ProviderAdapter:
+    def __init__(self, provider_name: str, model: str, provider) -> None:
+        self.provider_name = provider_name
+        self.model = model
+        self._provider = provider
+
+    async def chat(self, prompt: str) -> str:
+        response = await self._provider.chat([ChatMessage(role="user", content=prompt)])
+        if isinstance(response, ChatCompletion):
+            return response.content
+        chunks = [chunk async for chunk in response]
+        return "".join(chunks)

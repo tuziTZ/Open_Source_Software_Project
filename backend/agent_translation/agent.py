@@ -60,6 +60,7 @@ class TranslationAgent:
     SYSTEM_PROMPT = (
         "You are a professional translator. Your task is to translate the "
         "provided article content accurately while preserving:\n"
+        "Translate Chinese to English, and English to Chinese.\n"
         "- Meaning and nuance of the original text\n"
         "- Structure and formatting (paragraphs, lists, headers, etc.)\n"
         "- Technical terms and proper nouns\n"
