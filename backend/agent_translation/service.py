@@ -9,7 +9,7 @@ Responsible for:
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC
 
 from app.schemas.agent import TranslationRequest, TranslationResult
 from db import get_article, get_article_content, record_usage, save_agent_result
@@ -121,16 +121,19 @@ class TranslationService:
             # Build agent with selected provider
             agent = TranslationAgent(provider=provider)
 
-            # Execute translation
+            # Execute translation (bilingual mode: original + translation)
             agent_result = await agent.translate(
                 content=content,
                 target_lang=target_lang,
                 temperature=0.3,  # Lower temperature for consistency
+                bilingual=True,  # 双语对照模式
             )
 
             # Record token usage
+            from datetime import datetime
+            today = datetime.now(UTC).strftime("%Y-%m-%d")
             record_usage(
-                day=datetime.now(UTC).date().isoformat(),
+                day=today,
                 provider=agent_result["provider"],
                 model=agent_result["model"],
                 agent="translation",

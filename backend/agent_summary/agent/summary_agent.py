@@ -4,16 +4,45 @@ import re
 from time import time
 from urllib.parse import urlparse
 
+from llm_providers import ChatMessage
+from llm_providers.base import LLMProvider
+
 from ..core.hooks import HookRegistry
 from ..core.router import Router
 from ..core.state import AgentState
 from ..core.tracer import RunResult
-from ..llm_client import LLMClient
 from ..steps.analyze import AnalyzeStep
 from ..steps.evaluate import EvaluateStep
 from ..steps.search import SearchStep
 from ..steps.summarize import SummarizeStep
 from ..tools.base import Tool, ToolRegistry
+
+
+class LLMProviderAdapter:
+    """将 LLMProvider 适配为 SummaryAgent 期望的简单 chat(prompt) 接口。"""
+
+    def __init__(self, provider: LLMProvider):
+        self._provider = provider
+        self.provider_name = provider.name
+        self.model = provider.model
+        self.base_url = getattr(provider, "base_url", "")
+        self._last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+
+    @property
+    def last_usage(self) -> dict[str, int]:
+        """返回最近一次调用的 token 用量。"""
+        return self._last_usage
+
+    async def chat(self, prompt: str) -> str:
+        """将单个 prompt 转换为 messages 格式调用 LLMProvider。"""
+        messages = [ChatMessage(role="user", content=prompt)]
+        result = await self._provider.chat(messages)
+        # 记录 token 用量
+        self._last_usage = {
+            "prompt_tokens": result.usage.prompt_tokens,
+            "completion_tokens": result.usage.completion_tokens,
+        }
+        return result.content
 
 
 class MockLLM:
@@ -45,18 +74,28 @@ class SummaryAgent:
     def __init__(self, llm_provider=None, tools: list[Tool] | None = None, use_mock: bool = False):
         # 默认使用真实 LLM，测试时可传入 use_mock=True
         if llm_provider:
-            self.llm = llm_provider
-            self.provider_name = getattr(
-                llm_provider,
-                "provider_name",
-                _provider_name_from_base_url(getattr(llm_provider, "base_url", "")),
-            )
-            self.model_name = getattr(llm_provider, "model", "custom")
+            # 如果传入的是 LLMProvider（新系统），用适配器包装
+            if hasattr(llm_provider, 'chat') and not hasattr(llm_provider, 'provider_name'):
+                adapter = LLMProviderAdapter(llm_provider)
+                self.llm = adapter
+                self.provider_name = adapter.provider_name
+                self.model_name = adapter.model
+            else:
+                # 旧的 LLMClient 或已适配的对象
+                self.llm = llm_provider
+                self.provider_name = getattr(
+                    llm_provider,
+                    "provider_name",
+                    _provider_name_from_base_url(getattr(llm_provider, "base_url", "")),
+                )
+                self.model_name = getattr(llm_provider, "model", "custom")
         elif use_mock:
             self.llm = MockLLM()
             self.provider_name = "mock"
             self.model_name = "mock-summary"
         else:
+            # 兼容旧的 LLMClient（如果直接调用）
+            from ..llm_client import LLMClient
             self.llm = LLMClient()
             self.provider_name = _provider_name_from_base_url(self.llm.base_url)
             self.model_name = self.llm.model
@@ -121,6 +160,13 @@ class SummaryAgent:
         state = AgentState(entry_id=entry_id, content=content)
         state, result = await self.run(state)
 
+        # 获取 token 用量（从 LLMProviderAdapter 或 metadata）
+        usage = {}
+        if hasattr(self.llm, 'last_usage'):
+            usage = self.llm.last_usage
+        elif 'usage' in state.metadata:
+            usage = state.metadata['usage']
+
         return {
             "entry_id": entry_id,
             "summary_text": state.summary or "",
@@ -129,6 +175,7 @@ class SummaryAgent:
             "model": self.model_name,
             "steps": result.steps,
             "duration": result.total_duration,
+            "usage": usage,
         }
 
 

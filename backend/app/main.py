@@ -34,6 +34,7 @@ app.include_router(entries_router)
 app.include_router(content_cleaner_router)
 app.include_router(agent_summary_router)
 app.include_router(agent_translation_router)
+app.include_router(providers_router)
 
 
 @app.get("/healthz", tags=["meta"])
