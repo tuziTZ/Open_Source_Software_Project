@@ -1,8 +1,15 @@
 """Translation agent - handles article translation via LLM."""
 
+import asyncio
 import re
 
-from llm_providers import ChatMessage, ChatOptions, LLMProvider, get_provider
+from llm_providers import (
+    ChatMessage,
+    ChatOptions,
+    LLMProvider,
+    LLMProviderError,
+    get_provider,
+)
 
 
 def chunk_by_headings(text: str, max_chars: int = 4000) -> list[str]:
@@ -58,9 +65,15 @@ class TranslationAgent:
     """
 
     SYSTEM_PROMPT = (
-        "You are a professional translator. Your task is to translate the "
-        "provided article content accurately while preserving:\n"
-        "Translate Chinese to English, and English to Chinese.\n"
+        "You are a professional translator specializing in Chinese <-> English "
+        "translation. Translate the provided article content into the requested "
+        "target language.\n"
+        "- If the target language is English, translate every Chinese sentence into English.\n"
+        "- If the target language is Chinese (中文), translate every English sentence into Chinese.\n"
+        "- Text already written in the target language must be left exactly as-is.\n"
+        "- Never echo the source text back untranslated, and never answer in the "
+        "source language when a translation is requested.\n\n"
+        "Preserve:\n"
         "- Meaning and nuance of the original text\n"
         "- Structure and formatting (paragraphs, lists, headers, etc.)\n"
         "- Technical terms and proper nouns\n"
@@ -89,8 +102,22 @@ class TranslationAgent:
         content: str,
         target_lang: str,
         temperature: float = 0.3,
+        max_retries: int = 3,
     ) -> dict:
-        """翻译单个片段"""
+        """翻译单个片段，失败时按指数退避重试。
+
+        Args:
+            content: 待翻译片段
+            target_lang: 目标语言
+            temperature: LLM temperature
+            max_retries: 最大尝试次数（含首次）
+
+        Returns:
+            dict with text + token usage.
+
+        Raises:
+            LLMProviderError: 重试耗尽后仍失败时抛出，由调用方决定如何降级。
+        """
         messages = [
             ChatMessage(role="system", content=self.SYSTEM_PROMPT),
             ChatMessage(
@@ -100,13 +127,24 @@ class TranslationAgent:
         ]
 
         options = ChatOptions(temperature=temperature)
-        completion = await self.provider.chat(messages, options=options)
 
-        return {
-            "text": completion.content,
-            "prompt_tokens": completion.usage.prompt_tokens,
-            "completion_tokens": completion.usage.completion_tokens,
-        }
+        last_error: Exception | None = None
+        for attempt in range(max_retries):
+            try:
+                completion = await self.provider.chat(messages, options=options)
+                return {
+                    "text": completion.content,
+                    "prompt_tokens": completion.usage.prompt_tokens,
+                    "completion_tokens": completion.usage.completion_tokens,
+                }
+            except LLMProviderError as exc:
+                last_error = exc
+                if attempt == max_retries - 1:
+                    break
+                # 指数退避：0.5s, 1s, 2s ...，缓解限流/瞬时网络错误
+                await asyncio.sleep(0.5 * (2**attempt))
+
+        raise last_error if last_error else LLMProviderError("Translation failed")
 
     async def translate_bilingual(
         self,
@@ -144,26 +182,40 @@ class TranslationAgent:
         total_prompt_tokens = 0
         total_completion_tokens = 0
         bilingual_parts = []
+        failed_chunks = 0
 
         for para in merged_paragraphs:
             # 检查是否是标题
             if para.startswith('#'):
-                # 标题直接翻译，不保留原文
-                result = await self.translate_chunk(para, target_lang, temperature)
-                bilingual_parts.append(result["text"])
-                total_prompt_tokens += result["prompt_tokens"]
-                total_completion_tokens += result["completion_tokens"]
+                # 标题直接翻译，不保留原文；失败则退化为原标题
+                try:
+                    result = await self.translate_chunk(para, target_lang, temperature)
+                    bilingual_parts.append(result["text"])
+                    total_prompt_tokens += result["prompt_tokens"]
+                    total_completion_tokens += result["completion_tokens"]
+                except LLMProviderError:
+                    failed_chunks += 1
+                    bilingual_parts.append(para)
             else:
-                # 普通段落：先原文，再翻译
-                result = await self.translate_chunk(para, target_lang, temperature)
+                # 普通段落：先原文，再翻译。单段失败不影响整篇，保留原文占位。
                 original = f'<div class="bilingual-original">{para}</div>'
-                translation = f'<div class="bilingual-translation">{result["text"]}</div>'
+                try:
+                    result = await self.translate_chunk(para, target_lang, temperature)
+                    translated = result["text"]
+                    total_prompt_tokens += result["prompt_tokens"]
+                    total_completion_tokens += result["completion_tokens"]
+                except LLMProviderError:
+                    failed_chunks += 1
+                    translated = para
+                translation = f'<div class="bilingual-translation">{translated}</div>'
                 bilingual_parts.append(original)
                 bilingual_parts.append("")
                 bilingual_parts.append(translation)
                 bilingual_parts.append("")
-                total_prompt_tokens += result["prompt_tokens"]
-                total_completion_tokens += result["completion_tokens"]
+
+        # 全部片段都失败时，视为整体失败，交由 service 标记 failure
+        if merged_paragraphs and failed_chunks == len(merged_paragraphs):
+            raise LLMProviderError("All translation chunks failed")
 
         # 合并结果
         translated_text = "\n\n".join(bilingual_parts)
@@ -212,12 +264,22 @@ class TranslationAgent:
         total_prompt_tokens = 0
         total_completion_tokens = 0
         translated_chunks = []
+        failed_chunks = 0
 
         for chunk in chunks:
-            result = await self.translate_chunk(chunk, target_lang, temperature)
-            translated_chunks.append(result["text"])
-            total_prompt_tokens += result["prompt_tokens"]
-            total_completion_tokens += result["completion_tokens"]
+            # 单段失败不影响整篇：保留原文占位，继续翻译其余片段
+            try:
+                result = await self.translate_chunk(chunk, target_lang, temperature)
+                translated_chunks.append(result["text"])
+                total_prompt_tokens += result["prompt_tokens"]
+                total_completion_tokens += result["completion_tokens"]
+            except LLMProviderError:
+                failed_chunks += 1
+                translated_chunks.append(chunk)
+
+        # 全部片段都失败时，视为整体失败，交由 service 标记 failure
+        if chunks and failed_chunks == len(chunks):
+            raise LLMProviderError("All translation chunks failed")
 
         # 合并翻译结果
         translated_text = "\n\n".join(translated_chunks)

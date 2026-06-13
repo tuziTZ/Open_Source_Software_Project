@@ -1,3 +1,62 @@
+#name: Desktop macOS Bundle
+#
+#on:
+#  workflow_dispatch:
+#  push:
+#    branches: [main]
+#
+#jobs:
+#  macos-bundle:
+#    runs-on: macos-latest
+#
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - uses: pnpm/action-setup@v4
+#        with:
+#          version: 10.11.0
+#
+#      - uses: actions/setup-node@v4
+#        with:
+#          node-version: 20
+#          cache: pnpm
+#
+#      # ❗统一 Python（必须）
+#      - uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.11"
+#
+#      # ❗安装 uv（关键）
+#      - name: Install uv
+#        run: pip install uv
+#
+#      # ❗锁 backend 环境
+#      - name: Setup backend env
+#        working-directory: backend
+#        run: |
+#          uv sync --group desktop
+#
+#      # JS deps
+#      - name: Install JS dependencies
+#        run: pnpm install --frozen-lockfile
+#
+#      # ❗显式 build backend sidecar（关键）
+#      - name: Build backend sidecar
+#        working-directory: backend
+#        run: uv run python scripts/build_sidecar.py
+#
+#      # Tauri build
+#      - name: Build macOS desktop bundle
+#        run: pnpm --filter desktop build:mac
+#
+#      # 上传
+#      - name: Upload macOS artifacts
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: mercury-desktop-macos
+#          path: |
+#            apps/desktop/target/release/bundle/dmg/*.dmg
+#            apps/desktop/target/release/bundle/macos/*.app
 name: Desktop macOS Bundle
 
 on:

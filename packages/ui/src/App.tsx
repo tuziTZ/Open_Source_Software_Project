@@ -979,7 +979,6 @@ function ReaderDetail(props: {
   const [translationMode, setTranslationMode] = useState<"original" | "translation">("original");
   const [noteDirty, setNoteDirty] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const showSplitTranslation = translationMode === "translation" && state.readerMode === "dual";
 
   useEffect(() => {
     setTranslationMode("original");
@@ -993,11 +992,6 @@ function ReaderDetail(props: {
     void props.onEnsureEntryContent(entry.id);
   }, [entry?.id, entry?.readerHtml, props.onEnsureEntryContent]);
 
-  const translationHtmlRendered = useMemo(
-    () => (entry?.translationHtml ? markdownToHtml(entry.translationHtml) : ""),
-    [entry?.translationHtml]
-  );
-
   if (!entry) {
     return (
       <div className="reader-empty">
@@ -1007,8 +1001,8 @@ function ReaderDetail(props: {
     );
   }
 
-  const articleHtml = translationMode === "translation" && entry.translationHtml 
-    ? renderSimpleMarkdown(entry.translationHtml) 
+  const articleHtml = translationMode === "translation" && entry.translationHtml
+    ? renderBilingualMarkdown(entry.translationHtml)
     : entry.readerHtml;
 
   async function toggleTranslation() {
@@ -1034,7 +1028,7 @@ function ReaderDetail(props: {
         return;
       }
       const entryId = entry.id;
-      const targetLang = state.locale === "zh-Hans" ? "中文" : "English";
+      const targetLang = detectTargetLang(entry.readerHtml);
       setIsTranslating(true);
       props.onUpdateEntry(entryId, (current) => ({ ...current, translationStatus: "running" }));
       try {
@@ -1071,7 +1065,7 @@ function ReaderDetail(props: {
       // 否则调用翻译 API
       props.onUpdateEntry(entry.id, (current) => ({ ...current, translationStatus: "running" }));
       import("./services/api").then(({ translateArticle }) => {
-        translateArticle(entry.id, "Chinese")
+        translateArticle(entry.id, detectTargetLang(entry.readerHtml))
           .then((result) => {
             props.onUpdateEntry(entry.id, (current) => ({
               ...current,
@@ -1175,27 +1169,16 @@ function ReaderDetail(props: {
           ))}
         </div>
       )}
-      <div className={`reader-surface mode-${state.readerMode}${showSplitTranslation ? " split-translation" : ""}`}>
+      <div className={`reader-surface mode-${state.readerMode}`}>
         {showReader && (
           <article
             className={`reader-article theme-${state.theme.preset} font-${state.theme.fontFamily}`}
             style={{
               fontSize: state.theme.fontSize,
               lineHeight: state.theme.lineHeight,
-              maxWidth: state.readerMode === "dual" || showSplitTranslation ? "none" : state.theme.contentWidth
+              maxWidth: state.readerMode === "dual" ? "none" : state.theme.contentWidth
             }}
-            dangerouslySetInnerHTML={{ __html: showSplitTranslation ? entry.readerHtml : articleHtml }}
-          />
-        )}
-        {showSplitTranslation && (
-          <article
-            className={`reader-article translation-pane theme-${state.theme.preset} font-${state.theme.fontFamily}`}
-            style={{
-              fontSize: state.theme.fontSize,
-              lineHeight: state.theme.lineHeight,
-              maxWidth: "none"
-            }}
-            dangerouslySetInnerHTML={{ __html: translationHtmlRendered }}
+            dangerouslySetInnerHTML={{ __html: articleHtml }}
           />
         )}
         {showWeb && (
@@ -2432,8 +2415,37 @@ function markdownToHtml(markdown: string): string {
   return blocks.join("\n");
 }
 
+// Render translated content that may contain bilingual wrapper divs
+// (<div class="bilingual-original">…</div> / "bilingual-translation").
+// The markdown INSIDE each wrapper is rendered via markdownToHtml so bold,
+// lists, headings etc. display correctly; the wrapper divs are preserved so
+// the bilingual CSS still applies. Plain (non-bilingual) markdown falls
+// through to markdownToHtml unchanged.
+function renderBilingualMarkdown(text: string): string {
+  const blockPattern = /<div class="bilingual-(original|translation)">([\s\S]*?)<\/div>/g;
+  if (!blockPattern.test(text)) {
+    return markdownToHtml(text);
+  }
+  blockPattern.lastIndex = 0;
+  return text.replace(blockPattern, (_match, variant, inner) =>
+    `<div class="bilingual-${variant}">${markdownToHtml(inner.trim())}</div>`
+  );
+}
+
 function capitalize(value: string): string {
   return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
+}
+
+// Pick the translation target by detecting the article's dominant language:
+// Chinese source -> English, otherwise -> Chinese (中文). This keeps the
+// bilingual view meaningful regardless of the UI locale, so an English
+// article read in an English UI still gets a Chinese translation rather than
+// a no-op "English -> English" round trip.
+function detectTargetLang(content: string): string {
+  const chineseChars = (content.match(/[一-鿿]/g) ?? []).length;
+  const asciiLetters = (content.match(/[A-Za-z]/g) ?? []).length;
+  // Treat the text as Chinese when CJK characters clearly dominate.
+  return chineseChars > asciiLetters ? "English" : "中文";
 }
 
 function emptyProviderDraft(): ProviderDraft {
