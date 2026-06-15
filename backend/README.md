@@ -1,6 +1,6 @@
-# Mercury Backend
+# Lumen Backend
 
-Python FastAPI sidecar for the Mercury desktop app. Runs as a child process of the Tauri shell.
+Python FastAPI sidecar for the Lumen desktop app. Runs as a child process of the Tauri shell.
 
 ## Prerequisites
 

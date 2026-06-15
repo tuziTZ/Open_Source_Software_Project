@@ -681,6 +681,55 @@ export interface components {
             /** Model */
             model: string;
         };
+        /** TranslationRequest */
+        TranslationRequest: {
+            /** Entry Id */
+            entry_id: string;
+            /** Target Lang */
+            target_lang: string;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+        };
+        /** TranslationResult */
+        TranslationResult: {
+            /** Entry Id */
+            entry_id: string;
+            /** Target Lang */
+            target_lang: string;
+            /** Translation Html */
+            translation_html: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "idle" | "queued" | "running" | "success" | "failure" | "cancelled";
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+        };
+        /** ProviderSummary */
+        ProviderSummary: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "openai_compatible" | "anthropic" | "ollama";
+            /** Model */
+            model: string;
+            /** Base Url */
+            base_url?: string | null;
+            /** Api Key Header */
+            api_key_header?: string | null;
+            /** Is Default */
+            is_default: boolean;
+            /** Has Api Key */
+            has_api_key: boolean;
+        };
         /** SyncResult */
         SyncResult: {
             /** Feed Id */
@@ -714,35 +763,6 @@ export interface components {
             usage_count: number;
             /** Unread Count */
             unread_count: number;
-        };
-        /** TranslationRequest */
-        TranslationRequest: {
-            /** Entry Id */
-            entry_id: string;
-            /** Target Lang */
-            target_lang: string;
-            /** Provider */
-            provider?: string | null;
-            /** Model */
-            model?: string | null;
-        };
-        /** TranslationResult */
-        TranslationResult: {
-            /** Entry Id */
-            entry_id: string;
-            /** Target Lang */
-            target_lang: string;
-            /** Translation Html */
-            translation_html: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "idle" | "queued" | "running" | "success" | "failure" | "cancelled";
-            /** Provider */
-            provider: string;
-            /** Model */
-            model: string;
         };
         /** ValidationError */
         ValidationError: {

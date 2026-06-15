@@ -3,11 +3,11 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Columns2,
   Copy,
   Download,
   ExternalLink,
   FileText,
-  FolderInput,
   Gauge,
   Languages,
   Library,
@@ -15,14 +15,11 @@ import {
   MoreHorizontal,
   Paintbrush,
   Plus,
-  RefreshCw,
   Search,
   Settings,
   Share2,
-  Sparkles,
   Star,
   Tags,
-  Trash2,
   X
 } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -57,11 +54,8 @@ import type {
 } from "./domain/types";
 import { translate } from "./i18n/messages";
 import {
-  createProviderConfig,
   getApiErrorMessage,
-  loadProviders,
-  removeProviderConfig,
-  updateProviderConfig
+  requestTranslation
 } from "./services/api";
 import { readStoredBoolean, readStoredNumber, writeStoredBoolean, writeStoredNumber } from "./services/storage";
 
@@ -711,12 +705,21 @@ function Sidebar(props: {
         <>
           <div className="pane-header">
             <h2>{t("feeds")}</h2>
-            <button className="icon-button" type="button" onClick={() => props.onModal({ type: "feedEditor" })} title={t("addFeed")}>
-              <Plus size={16} aria-hidden />
-            </button>
-            <button className="icon-button" type="button" onClick={() => void props.onSync().catch(() => undefined)} title={t("syncNow")}>
-              <RefreshCw size={16} aria-hidden />
-            </button>
+            <MenuButton
+              label={t("addFeed")}
+              icon={<Plus size={16} aria-hidden />}
+              items={[
+                { label: t("addFeed"), action: () => props.onModal({ type: "feedEditor" }) },
+                { label: t("importOpml"), action: () => props.onModal({ type: "importOpml" }) }
+              ]}
+            />
+            <MenuButton
+              label={t("feeds")}
+              items={[
+                { label: t("syncNow"), action: () => void props.onSync().catch(() => undefined) },
+                { label: t("exportOpml"), action: () => undefined, disabled: true }
+              ]}
+            />
           </div>
           <nav className="sidebar-list" aria-label={t("feeds")}>
             <SidebarRow
@@ -744,16 +747,6 @@ function Sidebar(props: {
               />
             ))}
           </nav>
-          <div className="sidebar-actions">
-            <button type="button" onClick={() => props.onModal({ type: "importOpml" })}>
-              <FolderInput size={15} aria-hidden />
-              {t("importOpml")}
-            </button>
-            <button type="button">
-              <Download size={15} aria-hidden />
-              {t("exportOpml")}
-            </button>
-          </div>
         </>
       ) : (
         <>
@@ -981,6 +974,7 @@ function ReaderDetail(props: {
   const showWeb = state.readerMode !== "reader";
   const [translationMode, setTranslationMode] = useState<"original" | "translation">("original");
   const [noteDirty, setNoteDirty] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   useEffect(() => {
     setTranslationMode("original");
@@ -1003,10 +997,12 @@ function ReaderDetail(props: {
     );
   }
 
-  const articleHtml = translationMode === "translation" && entry.translationHtml ? entry.translationHtml : entry.readerHtml;
+  const articleHtml = translationMode === "translation" && entry.translationHtml
+    ? renderBilingualMarkdown(entry.translationHtml)
+    : entry.readerHtml;
   const webHtml = entry.webPreview.trim().startsWith("<") ? entry.webPreview : articleHtml;
 
-  function toggleTranslation() {
+  async function toggleTranslation() {
     if (!entry) {
       return;
     }
@@ -1014,18 +1010,70 @@ function ReaderDetail(props: {
       props.onNotice(t("translationReaderOnly"));
       return;
     }
+
+    // Reader mode: real backend translation with side-by-side original/translation.
+    if (state.readerMode === "reader") {
+      if (translationMode === "translation") {
+        setTranslationMode("original");
+        return;
+      }
+      setTranslationMode("translation");
+      if (entry.translationHtml) {
+        return;
+      }
+      if (isTranslating) {
+        return;
+      }
+      const entryId = entry.id;
+      const targetLang = detectTargetLang(entry.readerHtml);
+      setIsTranslating(true);
+      props.onUpdateEntry(entryId, (current) => ({ ...current, translationStatus: "running" }));
+      try {
+        const result = await requestTranslation(entryId, targetLang);
+        if (result.status === "success" && result.translation_html.trim()) {
+          props.onUpdateEntry(entryId, (current) => ({
+            ...current,
+            translationStatus: "success",
+            translationHtml: result.translation_html
+          }));
+        } else {
+          props.onUpdateEntry(entryId, (current) => ({ ...current, translationStatus: "failure" }));
+          props.onNotice(t("translationFailed"));
+          setTranslationMode("original");
+        }
+      } catch (error) {
+        props.onUpdateEntry(entryId, (current) => ({ ...current, translationStatus: "failure" }));
+        props.onNotice(getApiErrorMessage(error));
+        setTranslationMode("original");
+      } finally {
+        setIsTranslating(false);
+      }
+      return;
+    }
+
+    // Dual mode: preserve existing mock preview behavior unchanged.
     if (translationMode === "original") {
       setTranslationMode("translation");
-      props.onUpdateEntry(entry.id, (current) => ({ ...current, translationStatus: current.translationHtml ? "success" : "running" }));
-      window.setTimeout(() => {
-        props.onUpdateEntry(entry.id, (current) => ({
-          ...current,
-          translationStatus: "success",
-          translationHtml:
-            current.translationHtml ??
-            `<h1>${current.title}</h1><p>[Translated] ${current.summary}</p><p>${stripHtml(current.readerHtml)}</p>`
-        }));
-      }, 350);
+      // 如果已有翻译，直接显示
+      if (entry.translationHtml) {
+        props.onUpdateEntry(entry.id, (current) => ({ ...current, translationStatus: "success" }));
+        return;
+      }
+      // 否则调用翻译 API
+      props.onUpdateEntry(entry.id, (current) => ({ ...current, translationStatus: "running" }));
+      import("./services/api").then(({ translateArticle }) => {
+        translateArticle(entry.id, detectTargetLang(entry.readerHtml))
+          .then((result) => {
+            props.onUpdateEntry(entry.id, (current) => ({
+              ...current,
+              translationHtml: result.translation_html,
+              translationStatus: result.status === "success" ? "success" : "failure"
+            }));
+          })
+          .catch(() => {
+            props.onUpdateEntry(entry.id, (current) => ({ ...current, translationStatus: "failure" }));
+          });
+      });
       return;
     }
     setTranslationMode("original");
@@ -1036,13 +1084,29 @@ function ReaderDetail(props: {
       <div className="reader-toolbar">
         <div className="segmented mode-switch">
           {(["reader", "web", "dual"] as ReaderMode[]).map((mode) => (
-            <button key={mode} type="button" className={state.readerMode === mode ? "active" : ""} onClick={() => props.onMode(mode)}>
-              {t(mode)}
+            <button
+              key={mode}
+              type="button"
+              className={state.readerMode === mode ? "active" : ""}
+              onClick={() => props.onMode(mode)}
+              title={t(mode)}
+              aria-label={t(mode)}
+            >
+              {mode === "reader" && <BookOpen size={16} aria-hidden />}
+              {mode === "web" && <ExternalLink size={16} aria-hidden />}
+              {mode === "dual" && <Columns2 size={16} aria-hidden />}
             </button>
           ))}
         </div>
-        <button className="icon-button" type="button" onClick={toggleTranslation} title={translationMode === "original" ? t("switchToTranslation") : t("returnToOriginal")}>
-          <Languages size={17} aria-hidden />
+        <button
+          className="icon-button"
+          type="button"
+          disabled={isTranslating}
+          onClick={() => void toggleTranslation()}
+          title={isTranslating ? t("translatingButton") : translationMode === "original" ? t("switchToTranslation") : t("returnToOriginal")}
+          aria-label={isTranslating ? t("translatingButton") : translationMode === "original" ? t("switchToTranslation") : t("returnToOriginal")}
+        >
+          <Languages size={17} aria-hidden className={isTranslating ? "spin" : undefined} />
         </button>
         <button
           className="icon-button"
@@ -1305,6 +1369,97 @@ function ThemePanel(props: {
   );
 }
 
+function renderSimpleMarkdown(text: string): string {
+  // 保存双语标记，避免被转义
+  const bilingualMarkers: string[] = [];
+  let html = text.replace(/<div class="bilingual-(original|translation)">([\s\S]*?)<\/div>/g, (match) => {
+    const index = bilingualMarkers.length;
+    bilingualMarkers.push(match);
+    return `__BILINGUAL_${index}__`;
+  });
+
+  // 清理文本
+  html = html
+    // 移除图片链接 ![alt](url) -> [图片]
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "[图片]")
+    // 简化链接 [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    // 移除其他 HTML 标签
+    .replace(/<[^>]+>/g, "")
+    // 移除 URL 链接（单独一行的）
+    .replace(/^https?:\/\/\S+$/gm, "")
+    // Escape HTML 特殊字符
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // 代码块: ```code```
+  html = html.replace(/```[\s\S]*?```/g, (match) => {
+    const code = match.replace(/```\w*\n?/g, "").replace(/```$/g, "");
+    return `<pre><code>${code}</code></pre>`;
+  });
+
+  // Headers: ### h3, ## h2, # h1
+  html = html.replace(/^#### (.+)$/gm, "<h5>$1</h5>");
+  html = html.replace(/^### (.+)$/gm, "<h4>$1</h4>");
+  html = html.replace(/^## (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^# (.+)$/gm, "<h2>$1</h2>");
+
+  // Bold: **text**
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  // Italic: *text*
+  html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
+
+  // Inline code: `code`
+  html = html.replace(/`(.+?)`/g, "<code>$1</code>");
+
+  // Blockquote: > text
+  html = html.replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>");
+
+  // Horizontal rule: --- or ***
+  html = html.replace(/^[-*]{3,}$/gm, "<hr>");
+
+  // Unordered list: - item or * item
+  html = html.replace(/^[\-\*] (.+)$/gm, "<li>$1</li>");
+
+  // Ordered list: 1. item
+  html = html.replace(/^\d+\. (.+)$/gm, "<li>$1</li>");
+
+  // 合并连续的 li 为 ul
+  html = html.replace(/((?:<li>.*<\/li>\s*)+)/g, "<ul>$1</ul>");
+
+  // 段落处理：双换行 = 新段落
+  html = html.replace(/\n\n+/g, "</p><p>");
+  // 单换行 = <br>
+  html = html.replace(/\n/g, "<br>");
+  html = "<p>" + html + "</p>";
+
+  // 清理空段落和嵌套问题
+  html = html.replace(/<p>\s*<\/p>/g, "");
+  html = html.replace(/<p>(<h[2-5]>)/g, "$1");
+  html = html.replace(/(<\/h[2-5]>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<ul>)/g, "$1");
+  html = html.replace(/(<\/ul>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<blockquote>)/g, "$1");
+  html = html.replace(/(<\/blockquote>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<pre>)/g, "$1");
+  html = html.replace(/(<\/pre>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<hr>)/g, "$1");
+  html = html.replace(/(<hr>)<\/p>/g, "$1");
+  // 清理连续的 br
+  html = html.replace(/(<br>\s*){3,}/g, "<br><br>");
+  // 清理 [图片] 周围的多余标记
+  html = html.replace(/\[图片\]/g, '<span style="color: var(--color-muted); font-style: italic;">[图片]</span>');
+
+  // 恢复双语标记
+  html = html.replace(/__BILINGUAL_(\d+)__/g, (_, index) => {
+    return bilingualMarkers[parseInt(index)];
+  });
+
+  return html;
+}
+
 function SummaryPanel(props: {
   t: (key: string, values?: Record<string, string | number>) => string;
   entry: Entry;
@@ -1387,7 +1542,7 @@ function SummaryPanel(props: {
             <span>{props.t("target")}=en</span>
             <span>{props.t("detail")}={props.t("medium")}</span>
           </div>
-          <div className="summary-content">{props.summaryError ?? (props.entry.summaryText || props.t("emptySummary"))}</div>
+          <div className="summary-content" dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(props.summaryError ?? (props.entry.summaryText || props.t("emptySummary"))) }} />
         </>
       )}
     </section>
@@ -1416,9 +1571,23 @@ function ModalHost(props: {
   if (state.modal.type === "none") {
     return null;
   }
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    // 只在点击 backdrop 本身时关闭，不包括 modal 内容
+    if (e.target === e.currentTarget) {
+      props.onClose();
+    }
+  };
+
+  const modalClassName = [
+    "modal",
+    state.modal.type === "settings" || state.modal.type === "usageReport" ? "wide" : "",
+    state.modal.type === "feedEditor" || state.modal.type === "importOpml" ? "compact" : ""
+  ].filter(Boolean).join(" ");
+
   return (
-    <div className="modal-backdrop" role="presentation">
-      <div className={`modal ${state.modal.type === "settings" || state.modal.type === "usageReport" ? "wide" : ""}`} role="dialog" aria-modal="true">
+    <div className="modal-backdrop" role="presentation" onClick={handleBackdropClick}>
+      <div className={modalClassName} role="dialog" aria-modal="true">
         <div className="modal-header">
           <h2>{modalTitle(t, state.modal)}</h2>
           <button className="icon-button" type="button" onClick={props.onClose}>
@@ -1463,98 +1632,155 @@ function SettingsModal(props: {
   onModal: (modal: ModalState) => void;
 }) {
   const tabs: AppState["settingsTab"][] = ["general", "reader", "agents", "digest"];
-  const [providers, setProviders] = useState<ProviderSummary[]>([]);
-  const [providersLoading, setProvidersLoading] = useState(false);
-  const [providerError, setProviderError] = useState<string | null>(null);
-  const [selectedProviderName, setSelectedProviderName] = useState<string>("__new__");
-  const [draft, setDraft] = useState<ProviderDraft>(() => emptyProviderDraft());
+  const [providers, setProviders] = useState<Array<{ name: string; kind: string; model: string; base_url?: string | null; is_default: boolean; has_api_key: boolean }>>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>("");
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ status: string; error?: string } | null>(null);
+
+  // 编辑表单状态
+  const [isEditing, setIsEditing] = useState(false);
+  const [isNewProvider, setIsNewProvider] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    kind: "openai_compatible",
+    model: "",
+    base_url: "",
+    api_key: "",
+    api_key_header: "",
+    is_default: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const loadProviders = async () => {
+    try {
+      const { getProviders } = await import("./services/api");
+      const data = await getProviders();
+      setProviders(data);
+      return data;
+    } catch (error) {
+      console.error("Failed to load providers:", error);
+      return [];
+    }
+  };
 
   useEffect(() => {
-    if (props.state.settingsTab !== "agents") {
-      return;
-    }
-    let cancelled = false;
-    setProvidersLoading(true);
-    setProviderError(null);
-    void loadProviders()
-      .then((items) => {
-        if (cancelled) {
-          return;
-        }
-        setProviders(items);
-        const nextSelected = pickProviderSelection(items, selectedProviderName);
-        setSelectedProviderName(nextSelected);
-        setDraft(providerDraftFromSelection(items, nextSelected));
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-        setProviderError(getApiErrorMessage(error));
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setProvidersLoading(false);
-        }
+    loadProviders().then((data) => {
+      const defaultProvider = data.find((p) => p.is_default);
+      if (defaultProvider) {
+        setSelectedProvider(defaultProvider.name);
+      } else if (data.length > 0) {
+        setSelectedProvider(data[0].name);
+      }
+    });
+  }, []);
+
+  const handleSelectProvider = (name: string) => {
+    setSelectedProvider(name);
+    const provider = providers.find((p) => p.name === name);
+    if (provider) {
+      setFormData({
+        name: provider.name,
+        kind: provider.kind,
+        model: provider.model,
+        base_url: provider.base_url || "",
+        api_key: "",
+        api_key_header: "",
+        is_default: provider.is_default,
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [props.state.settingsTab]);
-
-  useEffect(() => {
-    if (props.state.settingsTab !== "agents") {
-      return;
+      setIsEditing(true);
+      setIsNewProvider(false);
     }
-    setDraft(providerDraftFromSelection(providers, selectedProviderName));
-  }, [props.state.settingsTab, providers, selectedProviderName]);
+  };
 
-  async function saveProvider() {
-    if (!draft.name.trim() || !draft.model.trim()) {
-      setProviderError(props.t("requestFailed"));
-      return;
-    }
+  const handleAddNew = () => {
+    setSelectedProvider("");
+    setFormData({
+      name: "",
+      kind: "openai_compatible",
+      model: "",
+      base_url: "",
+      api_key: "",
+      api_key_header: "",
+      is_default: providers.length === 0,
+    });
+    setIsEditing(true);
+    setIsNewProvider(true);
+    setTestResult(null);
+  };
 
-    setProvidersLoading(true);
-    setProviderError(null);
+  const handleSave = async () => {
+    if (!formData.name.trim()) return;
+    setSaving(true);
     try {
-      const isNew = selectedProviderName === "__new__";
-      const saved = isNew
-        ? await createProviderConfig(draft)
-        : await updateProviderConfig(selectedProviderName, draft);
-      const next = await loadProviders();
-      setProviders(next);
-      setSelectedProviderName(saved.name);
-      setDraft(providerDraftFromSelection(next, saved.name));
+      const { createProvider, updateProvider } = await import("./services/api");
+      if (isNewProvider) {
+        await createProvider(formData);
+      } else {
+        await updateProvider(selectedProvider, formData);
+      }
+      setIsEditing(false);
+      setIsNewProvider(false);
+      const data = await loadProviders();
+      setSelectedProvider(formData.name);
+      // 如果设为默认，刷新列表
+      if (formData.is_default) {
+        await loadProviders();
+      }
     } catch (error) {
-      setProviderError(getApiErrorMessage(error));
+      console.error("Failed to save provider:", error);
     } finally {
-      setProvidersLoading(false);
+      setSaving(false);
     }
-  }
+  };
 
-  async function deleteProviderItem() {
-    if (selectedProviderName === "__new__") {
-      setDraft(emptyProviderDraft());
-      return;
-    }
-
-    setProvidersLoading(true);
-    setProviderError(null);
+  const handleDelete = async () => {
+    if (!selectedProvider) return;
+    setDeleting(true);
     try {
-      await removeProviderConfig(selectedProviderName);
-      const next = await loadProviders();
-      setProviders(next);
-      const nextSelected = pickProviderSelection(next, "__new__");
-      setSelectedProviderName(nextSelected);
-      setDraft(providerDraftFromSelection(next, nextSelected));
+      const { deleteProvider } = await import("./services/api");
+      await deleteProvider(selectedProvider);
+      setIsEditing(false);
+      setSelectedProvider("");
+      await loadProviders();
     } catch (error) {
-      setProviderError(getApiErrorMessage(error));
+      console.error("Failed to delete provider:", error);
     } finally {
-      setProvidersLoading(false);
+      setDeleting(false);
     }
-  }
+  };
+
+  const handleTestProvider = async () => {
+    if (!selectedProvider) return;
+    setTestingProvider(selectedProvider);
+    setTestResult(null);
+    try {
+      const { testProvider } = await import("./services/api");
+      const result = await testProvider(selectedProvider);
+      setTestResult(result);
+    } catch (error) {
+      setTestResult({ status: "error", error: String(error) });
+    } finally {
+      setTestingProvider(null);
+    }
+  };
+
+  const handleSetDefault = async () => {
+    if (!selectedProvider) return;
+    try {
+      const { setDefaultProvider } = await import("./services/api");
+      await setDefaultProvider(selectedProvider);
+      // 更新 formData
+      setFormData((prev) => ({ ...prev, is_default: true }));
+      await loadProviders();
+    } catch (error) {
+      console.error("Failed to set default provider:", error);
+    }
+  };
+
+  const handleFormChange = (field: string, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   return (
     <div className="settings-layout">
@@ -1601,116 +1827,143 @@ function SettingsModal(props: {
           </>
         )}
         {props.state.settingsTab === "agents" && (
-          <>
-            <SettingRow label={props.t("providers")}>
-              <div className="provider-toolbar">
-                <select value={selectedProviderName} onChange={(event) => setSelectedProviderName(event.target.value)}>
-                  <option value="__new__">{props.t("newProvider")}</option>
+          <div className="provider-settings">
+            {/* Provider 选择器 */}
+            <SettingRow label={props.t("provider")}>
+              <div className="provider-selector">
+                <select
+                  value={selectedProvider}
+                  onChange={(event) => handleSelectProvider(event.target.value)}
+                >
+                  {providers.length === 0 && (
+                    <option value="">{props.t("noProviders")}</option>
+                  )}
                   {providers.map((provider) => (
                     <option key={provider.name} value={provider.name}>
                       {provider.name}
-                      {provider.isDefault ? " (Default)" : ""}
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedProviderName("__new__");
-                    setDraft(emptyProviderDraft());
-                    setProviderError(null);
-                  }}
-                >
+                <button type="button" className="add-provider-btn" onClick={handleAddNew}>
                   {props.t("addProvider")}
                 </button>
               </div>
             </SettingRow>
-            <SettingRow label={props.t("providerName")}>
-              <input
-                value={draft.name}
-                onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                disabled={selectedProviderName !== "__new__"}
-              />
-            </SettingRow>
-            <SettingRow label={props.t("providerKind")}>
-              <select
-                value={draft.kind}
-                onChange={(event) => setDraft((current) => ({ ...current, kind: event.target.value as ProviderKind }))}
-              >
-                <option value="openai_compatible">{props.t("openaiCompatible")}</option>
-                <option value="anthropic">{props.t("anthropic")}</option>
-                <option value="ollama">{props.t("ollama")}</option>
-              </select>
-            </SettingRow>
-            <SettingRow label={props.t("model")}>
-              <input value={draft.model} onChange={(event) => setDraft((current) => ({ ...current, model: event.target.value }))} />
-            </SettingRow>
-            <SettingRow label="Base URL">
-              <input value={draft.baseUrl} onChange={(event) => setDraft((current) => ({ ...current, baseUrl: event.target.value }))} />
-            </SettingRow>
-            <SettingRow label={props.t("apiKey")}>
-              <div className="provider-secret-row">
-                <input
-                  type="password"
-                  value={draft.apiKey}
-                  placeholder={selectedProviderName !== "__new__" && selectedProviderHasKey(providers, selectedProviderName) ? props.t("storedSecret") : ""}
-                  onChange={(event) => setDraft((current) => ({ ...current, apiKey: event.target.value, clearApiKey: false }))}
-                />
-                {selectedProviderName !== "__new__" && selectedProviderHasKey(providers, selectedProviderName) && (
-                  <label className="check-row compact">
+
+            {/* 编辑表单 */}
+            {isEditing && (
+              <div className="provider-form">
+                <SettingRow label={props.t("providerName")}>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(event) => handleFormChange("name", event.target.value)}
+                    disabled={!isNewProvider}
+                    placeholder="e.g., openai, deepseek, ollama"
+                  />
+                </SettingRow>
+                <SettingRow label={props.t("providerType")}>
+                  <select
+                    value={formData.kind}
+                    onChange={(event) => handleFormChange("kind", event.target.value)}
+                  >
+                    <option value="openai_compatible">OpenAI Compatible</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="ollama">Ollama (Local)</option>
+                  </select>
+                </SettingRow>
+                <SettingRow label={props.t("model")}>
+                  <input
+                    type="text"
+                    value={formData.model}
+                    onChange={(event) => handleFormChange("model", event.target.value)}
+                    placeholder="e.g., gpt-4o, claude-3-opus, llama3"
+                  />
+                </SettingRow>
+                <SettingRow label={props.t("baseUrl")}>
+                  <input
+                    type="text"
+                    value={formData.base_url}
+                    onChange={(event) => handleFormChange("base_url", event.target.value)}
+                    placeholder="e.g., https://api.openai.com/v1"
+                  />
+                </SettingRow>
+                <SettingRow label={props.t("apiKey")}>
+                  <input
+                    type="password"
+                    value={formData.api_key}
+                    onChange={(event) => handleFormChange("api_key", event.target.value)}
+                    placeholder={providers.find((p) => p.name === selectedProvider)?.has_api_key ? "(已配置)" : "sk-..."}
+                  />
+                </SettingRow>
+                <SettingRow label={props.t("apiKeyHeader")}>
+                  <input
+                    type="text"
+                    value={formData.api_key_header}
+                    onChange={(event) => {
+                      // 只允许 ASCII 字符
+                      const value = event.target.value.replace(/[^\x00-\x7F]/g, "");
+                      handleFormChange("api_key_header", value);
+                    }}
+                    placeholder="留空使用默认 Authorization: Bearer"
+                  />
+                </SettingRow>
+                <SettingRow label={props.t("defaultProvider")}>
+                  <label className="checkbox-label">
                     <input
                       type="checkbox"
-                      checked={draft.clearApiKey}
-                      onChange={(event) => setDraft((current) => ({ ...current, clearApiKey: event.target.checked, apiKey: "" }))}
+                      checked={formData.is_default}
+                      onChange={(event) => handleFormChange("is_default", event.target.checked)}
                     />
-                    {props.t("clearStoredApiKey")}
+                    <span>{props.t("setAsDefault")}</span>
                   </label>
-                )}
+                </SettingRow>
+                <SettingRow label={props.t("availability")}>
+                  <button
+                    type="button"
+                    disabled={testingProvider !== null || !selectedProvider}
+                    onClick={handleTestProvider}
+                  >
+                    {testingProvider === selectedProvider ? props.t("testing") : props.t("testConnection")}
+                  </button>
+                  {testResult && (
+                    <span className={`status-pill ${testResult.status === "ok" ? "success" : "error"}`}>
+                      {testResult.status === "ok" ? props.t("ready") : testResult.error ?? props.t("failed")}
+                    </span>
+                  )}
+                </SettingRow>
+                <SettingRow label={props.t("fallback")}>
+                  <span>{props.t("fallbackChain")}</span>
+                </SettingRow>
+                <div className="provider-actions">
+                  <button type="button" className="btn-secondary" onClick={handleAddNew}>
+                    {props.t("addNew")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={handleDelete}
+                    disabled={deleting || !selectedProvider}
+                  >
+                    {deleting ? props.t("deleting") : props.t("deleteProvider")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleSave}
+                    disabled={saving || !formData.name.trim()}
+                  >
+                    {saving ? props.t("saving") : props.t("saveProvider")}
+                  </button>
+                </div>
               </div>
-            </SettingRow>
-            <SettingRow label={props.t("apiKeyHeader")}>
-              <input
-                value={draft.apiKeyHeader}
-                onChange={(event) => setDraft((current) => ({ ...current, apiKeyHeader: event.target.value }))}
-              />
-            </SettingRow>
-            <SettingRow label={props.t("providerDefault")}>
-              <label className="check-row compact">
-                <input
-                  type="checkbox"
-                  checked={draft.isDefault}
-                  onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))}
-                />
-                {props.t("providerDefault")}
-              </label>
-            </SettingRow>
-            <SettingRow label={props.t("availability")}>
-              <span className={`status-pill ${providers.length > 0 ? "success" : ""}`}>
-                {providersLoading
-                  ? props.t("loading")
-                  : providers.length > 0
-                    ? props.t("configuredProviders", { count: providers.length })
-                    : props.t("noProvidersConfigured")}
-              </span>
-            </SettingRow>
-            <SettingRow label={props.t("fallback")}>
-              <span>{providers.find((provider) => provider.isDefault)?.name ?? "LLMClient / mock"}</span>
-            </SettingRow>
-            {providerError && <p className="panel-status">{providerError}</p>}
-            <div className="modal-actions">
-              <button type="button" onClick={() => void deleteProviderItem()} disabled={providersLoading}>
-                {props.t("deleteProviderConfig")}
-              </button>
-              <button type="button" onClick={() => void saveProvider()} disabled={providersLoading}>
-                {props.t("saveProvider")}
-              </button>
-            </div>
-          </>
+            )}
+          </div>
         )}
         {props.state.settingsTab === "digest" && (
           <>
             <SettingRow label={props.t("exportFolder")}>
-              <code>~/Documents/Mercury Digests</code>
+              <code>~/Documents/Lumen Digests</code>
             </SettingRow>
             <SettingRow label={props.t("templates")}>
               <span>{digestTemplates.map((template) => template.title).join(", ")}</span>
@@ -1898,12 +2151,13 @@ function FeedEditor(props: {
 
   return (
     <div className="modal-body">
-      <SettingRow label="URL">
+      <p className="modal-caption">{props.t("feedEditorHint")}</p>
+      <SettingRow label={props.t("feedUrl")}>
         <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://devblogs.microsoft.com/python/feed/" />
       </SettingRow>
       <label className="check-row">
         <input type="checkbox" checked={syncOnCreate} onChange={(event) => setSyncOnCreate(event.target.checked)} />
-        {props.t("syncNow")}
+        {props.t("syncAfterAdd")}
       </label>
       {props.error && <p className="panel-status">{props.error}</p>}
       <div className="modal-actions">
@@ -1911,7 +2165,7 @@ function FeedEditor(props: {
           {props.t("cancel")}
         </button>
         <button type="button" disabled={!url.trim() || props.status === "running"} onClick={() => void submit()}>
-          {props.status === "running" ? props.t("loading") : props.t("apply")}
+          {props.status === "running" ? props.t("loading") : props.t("save")}
         </button>
       </div>
     </div>
@@ -1942,6 +2196,7 @@ function SimpleFlow(props: {
 
   return (
     <div className="modal-body">
+      <p className="modal-caption">{props.t("opmlImportHint")}</p>
       <SettingRow label={props.t("importOpml")}>
         <input
           type="file"
@@ -1951,7 +2206,7 @@ function SimpleFlow(props: {
       </SettingRow>
       <label className="check-row">
         <input type="checkbox" checked={syncAfterImport} onChange={(event) => setSyncAfterImport(event.target.checked)} />
-        {props.t("syncNow")}
+        {props.t("syncAfterImport")}
       </label>
       {file && <p className="panel-status">{file.name}</p>}
       {props.error && <p className="panel-status">{props.error}</p>}
@@ -1960,7 +2215,7 @@ function SimpleFlow(props: {
           {props.t("cancel")}
         </button>
         <button type="button" disabled={!file || props.status === "running"} onClick={() => void submit()}>
-          {props.status === "running" ? props.t("loading") : props.t("continue")}
+          {props.status === "running" ? props.t("loading") : props.t("importAction")}
         </button>
       </div>
     </div>
@@ -2042,7 +2297,7 @@ function modalTitle(t: (key: string) => string, modal: ModalState): string {
     case "settings":
       return t("settings");
     case "feedEditor":
-      return t("editFeed");
+      return t("addFeed");
     case "importOpml":
       return t("importOpml");
     case "shareDigest":
@@ -2068,8 +2323,151 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderInlineMarkdown(text: string): string {
+  let html = escapeHtml(text);
+  // Links: [label](url)
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, url) =>
+    `<a href="${url}" target="_blank" rel="noopener">${label}</a>`
+  );
+  // Bold then italic, code spans
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  return html;
+}
+
+// Minimal markdown -> HTML for translated content (no external deps).
+// Handles headings, lists, blockquotes, code fences, and paragraphs.
+function markdownToHtml(markdown: string): string {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const blocks: string[] = [];
+  let paragraph: string[] = [];
+  let listItems: string[] = [];
+  let listOrdered = false;
+  let inCodeFence = false;
+  let codeLines: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length > 0) {
+      blocks.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
+      paragraph = [];
+    }
+  };
+  const flushList = () => {
+    if (listItems.length > 0) {
+      const tag = listOrdered ? "ol" : "ul";
+      blocks.push(`<${tag}>${listItems.join("")}</${tag}>`);
+      listItems = [];
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+
+    if (line.trim().startsWith("```")) {
+      if (inCodeFence) {
+        blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+        codeLines = [];
+        inCodeFence = false;
+      } else {
+        flushParagraph();
+        flushList();
+        inCodeFence = true;
+      }
+      continue;
+    }
+    if (inCodeFence) {
+      codeLines.push(line);
+      continue;
+    }
+
+    if (line.trim() === "") {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const level = heading[1].length;
+      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
+      continue;
+    }
+
+    const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+    const unordered = line.match(/^\s*[-*+]\s+(.*)$/);
+    if (ordered || unordered) {
+      flushParagraph();
+      const ofType = Boolean(ordered);
+      if (listItems.length > 0 && ofType !== listOrdered) {
+        flushList();
+      }
+      listOrdered = ofType;
+      const item = (ordered ?? unordered)![1];
+      listItems.push(`<li>${renderInlineMarkdown(item.trim())}</li>`);
+      continue;
+    }
+
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (quote) {
+      flushParagraph();
+      flushList();
+      blocks.push(`<blockquote>${renderInlineMarkdown(quote[1].trim())}</blockquote>`);
+      continue;
+    }
+
+    paragraph.push(line.trim());
+  }
+
+  if (inCodeFence) {
+    blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+  }
+  flushParagraph();
+  flushList();
+
+  return blocks.join("\n");
+}
+
+// Render translated content that may contain bilingual wrapper divs
+// (<div class="bilingual-original">…</div> / "bilingual-translation").
+// The markdown INSIDE each wrapper is rendered via markdownToHtml so bold,
+// lists, headings etc. display correctly; the wrapper divs are preserved so
+// the bilingual CSS still applies. Plain (non-bilingual) markdown falls
+// through to markdownToHtml unchanged.
+function renderBilingualMarkdown(text: string): string {
+  const blockPattern = /<div class="bilingual-(original|translation)">([\s\S]*?)<\/div>/g;
+  if (!blockPattern.test(text)) {
+    return markdownToHtml(text);
+  }
+  blockPattern.lastIndex = 0;
+  return text.replace(blockPattern, (_match, variant, inner) =>
+    `<div class="bilingual-${variant}">${markdownToHtml(inner.trim())}</div>`
+  );
+}
+
 function capitalize(value: string): string {
   return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
+}
+
+// Pick the translation target by detecting the article's dominant language:
+// Chinese source -> English, otherwise -> Chinese (中文). This keeps the
+// bilingual view meaningful regardless of the UI locale, so an English
+// article read in an English UI still gets a Chinese translation rather than
+// a no-op "English -> English" round trip.
+function detectTargetLang(content: string): string {
+  const chineseChars = (content.match(/[一-鿿]/g) ?? []).length;
+  const asciiLetters = (content.match(/[A-Za-z]/g) ?? []).length;
+  // Treat the text as Chinese when CJK characters clearly dominate.
+  return chineseChars > asciiLetters ? "English" : "中文";
 }
 
 function emptyProviderDraft(): ProviderDraft {

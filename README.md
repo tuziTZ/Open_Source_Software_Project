@@ -14,7 +14,7 @@
 | 徐晨           | https://github.com/OrangerXu         |
 | 屠恒彦         | https://github.com/hengyantu         |
 
-# Mercury
+# Lumen
 
 A local-first, cross-platform RSS reader with AI-assisted summarization and translation. Built as a course project for the Open-Source Software class.
 

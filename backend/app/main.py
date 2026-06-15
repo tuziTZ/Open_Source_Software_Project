@@ -13,7 +13,7 @@ from content_cleaner.router import router as content_cleaner_router
 from feed_engine.router import router as feed_engine_router
 
 app = FastAPI(
-    title="Mercury Backend",
+    title="Lumen Backend",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -34,6 +34,7 @@ app.include_router(entries_router)
 app.include_router(content_cleaner_router)
 app.include_router(agent_summary_router)
 app.include_router(agent_translation_router)
+app.include_router(providers_router)
 
 
 @app.get("/healthz", tags=["meta"])

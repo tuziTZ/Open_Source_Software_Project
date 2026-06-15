@@ -1,6 +1,6 @@
 # Desktop Shell
 
-`apps/desktop` is the Tauri packaging entry for the Mercury desktop app.
+`apps/desktop` is the Tauri packaging entry for the Lumen desktop app.
 
 ## Layout
 
@@ -44,11 +44,11 @@ pnpm --filter desktop build
 
 Installer output:
 
-- [Mercury Desktop_0.1.0_x64-setup.exe](</d:/githubcode/Open_Source_Software_Project/apps/desktop/target/release/bundle/nsis/Mercury Desktop_0.1.0_x64-setup.exe>)
+- [Lumen Desktop_0.1.0_x64-setup.exe](</d:/githubcode/Open_Source_Software_Project/apps/desktop/target/release/bundle/nsis/Lumen Desktop_0.1.0_x64-setup.exe>)
 
 Quick manual test after installation:
 
-1. Open Mercury.
+1. Open Lumen.
 2. Click `Import OPML...`.
 3. Choose [mercury-demo.opml](/d:/githubcode/Open_Source_Software_Project/docs/examples/mercury-demo.opml).
 4. Keep `Sync Now` enabled and continue.

@@ -1,25 +1,28 @@
 import {
-  createProvider,
   cleanStoredContent,
-  deleteProvider,
   createFeed,
+  createProvider as createProviderClient,
   deleteEntry,
+  deleteProvider as deleteProviderClient,
   generateSummary,
   getEntries,
   getEntry,
   getFeeds,
-  getProviders,
+  getProviders as getProvidersClient,
   getTags,
   importOpml,
   IpcError,
+  setDefaultProvider as setDefaultProviderClient,
   setEntryReadState,
   setEntryStarState,
   syncAllFeeds,
-  updateProvider
+  testProvider as testProviderClient,
+  translateArticle as translateArticleClient,
+  updateProvider as updateProviderClient
 } from "@mercury/ipc-client";
 import type { components } from "@mercury/shared-types";
 
-import type { Entry, Feed, ProviderDraft, ProviderSummary, Tag } from "../../domain/types";
+import type { Entry, Feed, Tag } from "../../domain/types";
 import { mercuryClient } from "./client";
 import { toUiEntry, toUiFeed, toUiTag } from "./mappers";
 
@@ -63,6 +66,16 @@ export async function requestSummary(entryId: string): Promise<components["schem
   return generateSummary(mercuryClient, { entry_id: entryId });
 }
 
+export async function requestTranslation(
+  entryId: string,
+  targetLang: string
+): Promise<components["schemas"]["TranslationResult"]> {
+  return mercuryClient.request<
+    components["schemas"]["TranslationResult"],
+    components["schemas"]["TranslationRequest"]
+  >("POST", "/agents/translation", { body: { entry_id: entryId, target_lang: targetLang } });
+}
+
 export async function subscribeToFeed(url: string, sync = true): Promise<Feed> {
   return toUiFeed(await createFeed(mercuryClient, { url, sync }));
 }
@@ -79,47 +92,32 @@ export async function ensureEntryContent(entryId: string): Promise<components["s
   return cleanStoredContent(mercuryClient, entryId);
 }
 
-export async function loadProviders(): Promise<ProviderSummary[]> {
-  const providers = await getProviders(mercuryClient);
-  return providers.map((provider) => ({
-    name: provider.name,
-    kind: provider.kind,
-    model: provider.model,
-    baseUrl: provider.base_url ?? null,
-    apiKeyHeader: provider.api_key_header ?? null,
-    isDefault: provider.is_default,
-    hasApiKey: provider.has_api_key
-  }));
+export async function getProviders() {
+  return getProvidersClient(mercuryClient);
 }
 
-export async function createProviderConfig(draft: ProviderDraft): Promise<ProviderSummary> {
-  const provider = await createProvider(mercuryClient, toProviderRequest(draft));
-  return {
-    name: provider.name,
-    kind: provider.kind,
-    model: provider.model,
-    baseUrl: provider.base_url ?? null,
-    apiKeyHeader: provider.api_key_header ?? null,
-    isDefault: provider.is_default,
-    hasApiKey: provider.has_api_key
-  };
+export async function createProvider(body: { name: string; kind?: string; model?: string; base_url?: string; api_key?: string; api_key_header?: string; is_default?: boolean }) {
+  return createProviderClient(mercuryClient, body);
 }
 
-export async function updateProviderConfig(providerName: string, draft: ProviderDraft): Promise<ProviderSummary> {
-  const provider = await updateProvider(mercuryClient, providerName, toProviderRequest(draft));
-  return {
-    name: provider.name,
-    kind: provider.kind,
-    model: provider.model,
-    baseUrl: provider.base_url ?? null,
-    apiKeyHeader: provider.api_key_header ?? null,
-    isDefault: provider.is_default,
-    hasApiKey: provider.has_api_key
-  };
+export async function updateProvider(name: string, body: { kind?: string; model?: string; base_url?: string; api_key?: string; api_key_header?: string; is_default?: boolean }) {
+  return updateProviderClient(mercuryClient, name, body);
 }
 
-export async function removeProviderConfig(providerName: string): Promise<void> {
-  await deleteProvider(mercuryClient, providerName);
+export async function deleteProvider(name: string) {
+  return deleteProviderClient(mercuryClient, name);
+}
+
+export async function setDefaultProvider(name: string) {
+  return setDefaultProviderClient(mercuryClient, name);
+}
+
+export async function testProvider(name: string) {
+  return testProviderClient(mercuryClient, name);
+}
+
+export async function translateArticle(entryId: string, targetLang: string) {
+  return translateArticleClient(mercuryClient, { entry_id: entryId, target_lang: targetLang });
 }
 
 export function getApiErrorMessage(error: unknown): string {
@@ -142,17 +140,4 @@ export function getApiErrorMessage(error: unknown): string {
 
 function hasDetail(value: unknown): value is { detail?: unknown } {
   return typeof value === "object" && value !== null && "detail" in value;
-}
-
-function toProviderRequest(draft: ProviderDraft): components["schemas"]["ProviderUpsertRequest"] {
-  return {
-    name: draft.name.trim(),
-    kind: draft.kind,
-    model: draft.model.trim(),
-    base_url: draft.baseUrl.trim() || null,
-    api_key: draft.apiKey.trim() || null,
-    api_key_header: draft.apiKeyHeader.trim() || null,
-    is_default: draft.isDefault,
-    clear_api_key: draft.clearApiKey
-  };
 }

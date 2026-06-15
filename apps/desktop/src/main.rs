@@ -62,7 +62,7 @@ fn start_backend_and_window(app: &tauri::App) -> Result<(), String> {
     }
 
     WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
-        .title("Mercury Desktop")
+        .title("Lumen Desktop")
         .inner_size(1440.0, 900.0)
         .initialization_script(&format!("window.__BACKEND_PORT__ = {};", port))
         .build()
