@@ -893,7 +893,6 @@ textarea {
   position: absolute;
   z-index: 30;
   top: 34px;
-  right: 0;
   display: flex;
   flex-direction: column;
   min-width: 210px;
@@ -902,6 +901,14 @@ textarea {
   border-radius: var(--radius);
   box-shadow: var(--shadow-panel);
   background: var(--color-surface);
+}
+
+.menu-popover.align-right {
+  right: 0;
+}
+
+.menu-popover.align-left {
+  left: 0;
 }
 
 .menu-popover button {

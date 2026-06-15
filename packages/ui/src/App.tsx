@@ -707,6 +707,7 @@ function Sidebar(props: {
             <h2>{t("feeds")}</h2>
             <MenuButton
               label={t("addFeed")}
+              align="left"
               icon={<Plus size={16} aria-hidden />}
               items={[
                 { label: t("addFeed"), action: () => props.onModal({ type: "feedEditor" }) },
@@ -715,6 +716,7 @@ function Sidebar(props: {
             />
             <MenuButton
               label={t("feeds")}
+              align="left"
               items={[
                 { label: t("syncNow"), action: () => void props.onSync().catch(() => undefined) },
                 { label: t("exportOpml"), action: () => undefined, disabled: true }
@@ -2224,6 +2226,7 @@ function SimpleFlow(props: {
 
 function MenuButton(props: {
   label: string;
+  align?: "left" | "right";
   icon?: React.ReactNode;
   items: Array<{ label: string; action: () => void; disabled?: boolean; destructive?: boolean }>;
 }) {
@@ -2234,7 +2237,7 @@ function MenuButton(props: {
         {props.icon ?? <MoreHorizontal size={17} aria-hidden />}
       </button>
       {open && (
-        <div className="menu-popover">
+        <div className={`menu-popover align-${props.align ?? "right"}`}>
           {props.items.map((item) => (
             <button
               key={item.label}
