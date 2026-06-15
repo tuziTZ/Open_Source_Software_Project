@@ -441,7 +441,11 @@ textarea {
 }
 
 .mode-switch {
-  width: 170px;
+  width: 126px;
+}
+
+.mode-switch button {
+  justify-content: center;
 }
 
 .status-note {
@@ -676,6 +680,26 @@ textarea {
 .web-preview p {
   max-width: 560px;
   margin: 0;
+}
+
+.web-preview-article {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 20px 24px 32px;
+  overflow: auto;
+  color: var(--color-text);
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.web-preview-article h1 {
+  font-size: 1.75em;
+  line-height: 1.2;
+}
+
+.web-preview-article p {
+  margin: 0 0 1em;
 }
 
 .floating-panel {
@@ -915,6 +939,10 @@ textarea {
   width: min(980px, calc(100vw - 56px));
 }
 
+.modal.compact {
+  width: min(360px, calc(100vw - 56px));
+}
+
 .modal-header {
   position: sticky;
   z-index: 1;
@@ -938,6 +966,13 @@ textarea {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.modal-caption {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .settings-layout,

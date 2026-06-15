@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("App empty state", () => {
@@ -34,5 +34,21 @@ describe("App empty state", () => {
     expect(screen.queryByText("Entry list failed to load.")).toBeNull();
     expect(screen.getByText("No entries match this scope.")).toBeTruthy();
     expect(screen.queryByText("Loading...")).toBeNull();
+  });
+
+  it("exposes OPML import from the feed add menu", async () => {
+    const { App } = await import("./App");
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.querySelector(".reader-workspace")?.getAttribute("aria-busy")).toBe("false");
+    });
+
+    fireEvent.click(screen.getByTitle("Add Feed..."));
+    fireEvent.click(screen.getByText("Import OPML..."));
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("Choose an OPML file to merge subscriptions into your library. Existing feeds are preserved.")).toBeTruthy();
   });
 });

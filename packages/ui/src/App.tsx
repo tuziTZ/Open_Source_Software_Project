@@ -3,11 +3,11 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Columns2,
   Copy,
   Download,
   ExternalLink,
   FileText,
-  FolderInput,
   Gauge,
   Languages,
   Library,
@@ -15,14 +15,11 @@ import {
   MoreHorizontal,
   Paintbrush,
   Plus,
-  RefreshCw,
   Search,
   Settings,
   Share2,
-  Sparkles,
   Star,
   Tags,
-  Trash2,
   X
 } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -708,12 +705,21 @@ function Sidebar(props: {
         <>
           <div className="pane-header">
             <h2>{t("feeds")}</h2>
-            <button className="icon-button" type="button" onClick={() => props.onModal({ type: "feedEditor" })} title={t("addFeed")}>
-              <Plus size={16} aria-hidden />
-            </button>
-            <button className="icon-button" type="button" onClick={() => void props.onSync().catch(() => undefined)} title={t("syncNow")}>
-              <RefreshCw size={16} aria-hidden />
-            </button>
+            <MenuButton
+              label={t("addFeed")}
+              icon={<Plus size={16} aria-hidden />}
+              items={[
+                { label: t("addFeed"), action: () => props.onModal({ type: "feedEditor" }) },
+                { label: t("importOpml"), action: () => props.onModal({ type: "importOpml" }) }
+              ]}
+            />
+            <MenuButton
+              label={t("feeds")}
+              items={[
+                { label: t("syncNow"), action: () => void props.onSync().catch(() => undefined) },
+                { label: t("exportOpml"), action: () => undefined, disabled: true }
+              ]}
+            />
           </div>
           <nav className="sidebar-list" aria-label={t("feeds")}>
             <SidebarRow
@@ -741,16 +747,6 @@ function Sidebar(props: {
               />
             ))}
           </nav>
-          <div className="sidebar-actions">
-            <button type="button" onClick={() => props.onModal({ type: "importOpml" })}>
-              <FolderInput size={15} aria-hidden />
-              {t("importOpml")}
-            </button>
-            <button type="button">
-              <Download size={15} aria-hidden />
-              {t("exportOpml")}
-            </button>
-          </div>
         </>
       ) : (
         <>
@@ -1004,6 +1000,7 @@ function ReaderDetail(props: {
   const articleHtml = translationMode === "translation" && entry.translationHtml
     ? renderBilingualMarkdown(entry.translationHtml)
     : entry.readerHtml;
+  const webHtml = entry.webPreview.trim().startsWith("<") ? entry.webPreview : articleHtml;
 
   async function toggleTranslation() {
     if (!entry) {
@@ -1087,14 +1084,29 @@ function ReaderDetail(props: {
       <div className="reader-toolbar">
         <div className="segmented mode-switch">
           {(["reader", "web", "dual"] as ReaderMode[]).map((mode) => (
-            <button key={mode} type="button" className={state.readerMode === mode ? "active" : ""} onClick={() => props.onMode(mode)}>
-              {t(mode)}
+            <button
+              key={mode}
+              type="button"
+              className={state.readerMode === mode ? "active" : ""}
+              onClick={() => props.onMode(mode)}
+              title={t(mode)}
+              aria-label={t(mode)}
+            >
+              {mode === "reader" && <BookOpen size={16} aria-hidden />}
+              {mode === "web" && <ExternalLink size={16} aria-hidden />}
+              {mode === "dual" && <Columns2 size={16} aria-hidden />}
             </button>
           ))}
         </div>
-        <button className="icon-button translate-button" type="button" disabled={isTranslating} onClick={() => void toggleTranslation()} title={translationMode === "original" ? t("switchToTranslation") : t("returnToOriginal")}>
+        <button
+          className="icon-button"
+          type="button"
+          disabled={isTranslating}
+          onClick={() => void toggleTranslation()}
+          title={isTranslating ? t("translatingButton") : translationMode === "original" ? t("switchToTranslation") : t("returnToOriginal")}
+          aria-label={isTranslating ? t("translatingButton") : translationMode === "original" ? t("switchToTranslation") : t("returnToOriginal")}
+        >
           <Languages size={17} aria-hidden className={isTranslating ? "spin" : undefined} />
-          <span>{isTranslating ? t("translatingButton") : translationMode === "translation" ? t("returnToOriginal") : t("translateButton")}</span>
         </button>
         <button
           className="icon-button"
@@ -1187,14 +1199,16 @@ function ReaderDetail(props: {
               <button type="button" className="icon-button" onClick={() => void navigator.clipboard?.writeText(entry.url)} title={t("copyUrl")}>
                 <Copy size={15} aria-hidden />
               </button>
-              <span>{entry.webPreview}</span>
-            </div>
-            <div className="web-preview">
-              <ExternalLink size={24} aria-hidden />
-              <h3>{entry.title}</h3>
-              <p>{entry.summary}</p>
               <span>{entry.url}</span>
             </div>
+            <article
+              className={`web-preview-article theme-${state.theme.preset} font-${state.theme.fontFamily}`}
+              style={{
+                fontSize: state.theme.fontSize,
+                lineHeight: state.theme.lineHeight
+              }}
+              dangerouslySetInnerHTML={{ __html: webHtml }}
+            />
           </div>
         )}
       </div>
@@ -1565,9 +1579,15 @@ function ModalHost(props: {
     }
   };
 
+  const modalClassName = [
+    "modal",
+    state.modal.type === "settings" || state.modal.type === "usageReport" ? "wide" : "",
+    state.modal.type === "feedEditor" || state.modal.type === "importOpml" ? "compact" : ""
+  ].filter(Boolean).join(" ");
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={handleBackdropClick}>
-      <div className={`modal ${state.modal.type === "settings" || state.modal.type === "usageReport" ? "wide" : ""}`} role="dialog" aria-modal="true">
+      <div className={modalClassName} role="dialog" aria-modal="true">
         <div className="modal-header">
           <h2>{modalTitle(t, state.modal)}</h2>
           <button className="icon-button" type="button" onClick={props.onClose}>
@@ -2131,12 +2151,13 @@ function FeedEditor(props: {
 
   return (
     <div className="modal-body">
-      <SettingRow label="URL">
+      <p className="modal-caption">{props.t("feedEditorHint")}</p>
+      <SettingRow label={props.t("feedUrl")}>
         <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://devblogs.microsoft.com/python/feed/" />
       </SettingRow>
       <label className="check-row">
         <input type="checkbox" checked={syncOnCreate} onChange={(event) => setSyncOnCreate(event.target.checked)} />
-        {props.t("syncNow")}
+        {props.t("syncAfterAdd")}
       </label>
       {props.error && <p className="panel-status">{props.error}</p>}
       <div className="modal-actions">
@@ -2144,7 +2165,7 @@ function FeedEditor(props: {
           {props.t("cancel")}
         </button>
         <button type="button" disabled={!url.trim() || props.status === "running"} onClick={() => void submit()}>
-          {props.status === "running" ? props.t("loading") : props.t("apply")}
+          {props.status === "running" ? props.t("loading") : props.t("save")}
         </button>
       </div>
     </div>
@@ -2175,6 +2196,7 @@ function SimpleFlow(props: {
 
   return (
     <div className="modal-body">
+      <p className="modal-caption">{props.t("opmlImportHint")}</p>
       <SettingRow label={props.t("importOpml")}>
         <input
           type="file"
@@ -2184,7 +2206,7 @@ function SimpleFlow(props: {
       </SettingRow>
       <label className="check-row">
         <input type="checkbox" checked={syncAfterImport} onChange={(event) => setSyncAfterImport(event.target.checked)} />
-        {props.t("syncNow")}
+        {props.t("syncAfterImport")}
       </label>
       {file && <p className="panel-status">{file.name}</p>}
       {props.error && <p className="panel-status">{props.error}</p>}
@@ -2193,7 +2215,7 @@ function SimpleFlow(props: {
           {props.t("cancel")}
         </button>
         <button type="button" disabled={!file || props.status === "running"} onClick={() => void submit()}>
-          {props.status === "running" ? props.t("loading") : props.t("continue")}
+          {props.status === "running" ? props.t("loading") : props.t("importAction")}
         </button>
       </div>
     </div>
@@ -2275,7 +2297,7 @@ function modalTitle(t: (key: string) => string, modal: ModalState): string {
     case "settings":
       return t("settings");
     case "feedEditor":
-      return t("editFeed");
+      return t("addFeed");
     case "importOpml":
       return t("importOpml");
     case "shareDigest":

@@ -20,12 +20,16 @@ release/
 apps/desktop/binaries/
 apps/desktop/gen/
 apps/desktop/src-tauri/
+apps/desktop/.venv-sidecar/
+apps/desktop/icons/icon.icns
 
 # Python desktop sidecar build outputs
 backend/build/
 backend/dist/
 backend/*.spec
 backend/.venv-sidecar/
+backend/backend/.venv-sidecar/
+backend/.requirements-sha256
 
 # Logs
 *.log

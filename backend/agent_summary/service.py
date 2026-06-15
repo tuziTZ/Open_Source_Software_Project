@@ -68,6 +68,9 @@ class SummaryService:
         return summary
 
     def _build_agent(self, request: SummaryRequest) -> SummaryAgent:
+        if self.agent_factory is not SummaryAgent and not request.provider and not request.model:
+            return _instantiate_agent(self.agent_factory)
+
         provider_name = (request.provider or "").strip().lower()
         use_mock = provider_name == "mock" or _use_mock_llm()
         if use_mock:
