@@ -497,3 +497,186 @@ class TestCleanStoredEndpoint:
         assert data["word_count"] == 0
         assert data["reading_time_minutes"] == 1  # floor
         assert data["plain_text"] == ""
+
+    def test_clean_stored_article_fetches_full_page_for_hnrss_metadata(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import content_cleaner.service as cleaner_service
+        from app.schemas.content import ArticleContent
+        from app.schemas.entry import Entry
+
+        fake_content = ArticleContent(
+            article_id="art-hn",
+            raw_html="""
+            <p>Article URL: <a href="https://example.com/full">https://example.com/full</a></p>
+            <p>Comments URL: <a href="https://news.ycombinator.com/item?id=1">HN</a></p>
+            <p>Points: 74</p>
+            <p># Comments: 17</p>
+            """,
+            cleaned_html="",
+            cleaned_markdown="",
+            plain_text="",
+        )
+        fake_entry = Entry(
+            id="art-hn",
+            feed_id="feed-001",
+            title="HN Article",
+            summary="",
+            author="",
+            url="https://example.com/full",
+            published_at="2026-01-01T00:00:00Z",
+            is_read=False,
+            is_starred=False,
+            tag_ids=[],
+            reader_html="",
+            web_preview="",
+            related_entry_ids=[],
+            note="",
+            summary_text="",
+            translation_html=None,
+            translation_status="idle",
+        )
+
+        class FakeHeaders:
+            def get(self, name: str) -> str | None:
+                return "text/html; charset=utf-8" if name == "Content-Type" else None
+
+        class FakeResponse:
+            url = "https://example.com/full"
+            headers = FakeHeaders()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return (
+                    b"<html><body><nav>menu</nav><article>"
+                    b"<h1>Real article title</h1><p>Real article body text.</p>"
+                    b"</article></body></html>"
+                )
+
+        saved: dict = {}
+        monkeypatch.setattr(
+            cleaner_service,
+            "get_article_content",
+            lambda aid: fake_content if aid == "art-hn" else None,
+        )
+        monkeypatch.setattr(
+            cleaner_service,
+            "get_article",
+            lambda aid: fake_entry if aid == "art-hn" else None,
+        )
+        monkeypatch.setattr(cleaner_service, "urlopen", lambda *args, **kwargs: FakeResponse())
+        monkeypatch.setattr(cleaner_service, "save_article_content", lambda **kw: saved.update(kw))
+
+        response = client.get("/content/entries/art-hn/clean")
+        assert response.status_code == 200
+        data = response.json()
+        assert "Real article title" in data["cleaned_html"]
+        assert "Real article body text." in data["cleaned_markdown"]
+        assert "Article URL:" not in data["plain_text"]
+        assert "Real article title" in saved["raw_html"]
+
+
+class TestFetchStoredWebPageEndpoint:
+    def test_get_nonexistent_article_returns_404(self, client: TestClient) -> None:
+        response = client.get("/content/entries/nonexistent-id/web")
+        assert response.status_code == 404
+
+    def test_rejects_non_http_article_url(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import content_cleaner.service as cleaner_service
+        from app.schemas.entry import Entry
+
+        fake_entry = Entry(
+            id="art-file",
+            feed_id="feed-001",
+            title="Local Article",
+            summary="",
+            author="",
+            url="file:///tmp/article.html",
+            published_at="2026-01-01T00:00:00Z",
+            is_read=False,
+            is_starred=False,
+            tag_ids=[],
+            reader_html="",
+            web_preview="",
+            related_entry_ids=[],
+            note="",
+            summary_text="",
+            translation_html=None,
+            translation_status="idle",
+        )
+
+        monkeypatch.setattr(
+            cleaner_service,
+            "get_article",
+            lambda aid: fake_entry if aid == "art-file" else None,
+        )
+
+        response = client.get("/content/entries/art-file/web")
+        assert response.status_code == 409
+
+    def test_fetches_html_and_injects_base_url(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import content_cleaner.service as cleaner_service
+        from app.schemas.entry import Entry
+
+        fake_entry = Entry(
+            id="art-web",
+            feed_id="feed-001",
+            title="Web Article",
+            summary="",
+            author="",
+            url="https://example.com/articles/one",
+            published_at="2026-01-01T00:00:00Z",
+            is_read=False,
+            is_starred=False,
+            tag_ids=[],
+            reader_html="",
+            web_preview="",
+            related_entry_ids=[],
+            note="",
+            summary_text="",
+            translation_html=None,
+            translation_status="idle",
+        )
+
+        class FakeHeaders:
+            def get(self, name: str) -> str | None:
+                return "text/html; charset=utf-8" if name == "Content-Type" else None
+
+        class FakeResponse:
+            url = "https://example.com/articles/one?utm=no"
+            headers = FakeHeaders()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return (
+                    b"<html><head><title>Hi</title></head>"
+                    b"<body><img src='image.png'></body></html>"
+                )
+
+        monkeypatch.setattr(
+            cleaner_service,
+            "get_article",
+            lambda aid: fake_entry if aid == "art-web" else None,
+        )
+        monkeypatch.setattr(cleaner_service, "urlopen", lambda *args, **kwargs: FakeResponse())
+
+        response = client.get("/content/entries/art-web/web")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["article_id"] == "art-web"
+        assert data["final_url"] == "https://example.com/articles/one?utm=no"
+        assert '<base href="https://example.com/articles/one?utm=no"/>' in data["html"]

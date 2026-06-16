@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from .schemas import CleanContentRequest, CleanContentResponse
-from .service import clean_html, clean_stored_article
+from .schemas import CleanContentRequest, CleanContentResponse, WebPageResponse
+from .service import clean_html, clean_stored_article, fetch_entry_web_page
 
 router = APIRouter(prefix="/content", tags=["content"])
 
@@ -14,3 +14,8 @@ async def clean_content(request: CleanContentRequest) -> CleanContentResponse:
 @router.get("/entries/{article_id}/clean", response_model=CleanContentResponse)
 async def clean_stored_content(article_id: str) -> CleanContentResponse:
     return clean_stored_article(article_id)
+
+
+@router.get("/entries/{article_id}/web", response_model=WebPageResponse)
+async def fetch_stored_web_page(article_id: str) -> WebPageResponse:
+    return fetch_entry_web_page(article_id)

@@ -12,6 +12,7 @@ import {
   getTags,
   importOpml,
   IpcError,
+  getEntryWebPage,
   setDefaultProvider as setDefaultProviderClient,
   setEntryReadState,
   setEntryStarState,
@@ -90,6 +91,10 @@ export async function syncFeeds(): Promise<components["schemas"]["SyncResult"][]
 
 export async function ensureEntryContent(entryId: string): Promise<components["schemas"]["CleanContentResponse"]> {
   return cleanStoredContent(mercuryClient, entryId);
+}
+
+export async function requestEntryWebPage(entryId: string): Promise<components["schemas"]["WebPageResponse"]> {
+  return getEntryWebPage(mercuryClient, entryId);
 }
 
 export async function getProviders() {
