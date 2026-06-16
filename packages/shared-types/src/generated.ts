@@ -158,25 +158,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/providers": {
+    "/providers/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Providers */
-        get: operations["get_providers_providers_get"];
+        /**
+         * Get Providers
+         * @description 获取所有提供商列表（不包含敏感信息）
+         */
+        get: operations["get_providers_providers__get"];
         put?: never;
-        /** Create Provider */
-        post: operations["create_provider_providers_post"];
+        /**
+         * Create Provider
+         * @description 创建新的提供商
+         */
+        post: operations["create_provider_providers__post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/providers/{provider_name}": {
+    "/providers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Provider By Name
+         * @description 获取指定提供商
+         */
+        get: operations["get_provider_by_name_providers__name__get"];
+        /**
+         * Update Provider By Name
+         * @description 更新提供商配置
+         */
+        put: operations["update_provider_by_name_providers__name__put"];
+        post?: never;
+        /**
+         * Delete Provider
+         * @description 删除提供商
+         */
+        delete: operations["delete_provider_providers__name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Default Provider
+         * @description 获取默认提供商
+         */
+        get: operations["get_default_provider_providers_default_get"];
+        put?: never;
+        /**
+         * Set Default Provider
+         * @description 设置默认提供商
+         */
+        post: operations["set_default_provider_providers_default_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/test/{name}": {
         parameters: {
             query?: never;
             header?: never;
@@ -184,11 +242,13 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Edit Provider */
-        put: operations["edit_provider_providers__provider_name__put"];
-        post?: never;
-        /** Delete Provider */
-        delete: operations["delete_provider_providers__provider_name__delete"];
+        put?: never;
+        /**
+         * Test Provider
+         * @description 测试提供商连接
+         */
+        post: operations["test_provider_providers_test__name__post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -289,6 +349,23 @@ export interface paths {
         };
         /** Clean Stored Content */
         get: operations["clean_stored_content_content_entries__article_id__clean_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/content/entries/{article_id}/web": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch Stored Web Page */
+        get: operations["fetch_stored_web_page_content_entries__article_id__web_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -427,6 +504,32 @@ export interface components {
             word_count: number;
             /** Reading Time Minutes */
             reading_time_minutes: number;
+        };
+        /** CreateProviderRequest */
+        CreateProviderRequest: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default openai_compatible
+             */
+            kind: string;
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /** Base Url */
+            base_url?: string | null;
+            /** Api Key */
+            api_key?: string | null;
+            /** Api Key Header */
+            api_key_header?: string | null;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
         };
         /** Entry */
         Entry: {
@@ -600,8 +703,8 @@ export interface components {
          * @enum {string}
          */
         ProviderKind: "openai_compatible" | "anthropic" | "ollama";
-        /** ProviderSummaryResponse */
-        ProviderSummaryResponse: {
+        /** ProviderSummary */
+        ProviderSummary: {
             /** Name */
             name: string;
             kind: components["schemas"]["ProviderKind"];
@@ -622,29 +725,10 @@ export interface components {
              */
             has_api_key: boolean;
         };
-        /** ProviderUpsertRequest */
-        ProviderUpsertRequest: {
+        /** SetDefaultRequest */
+        SetDefaultRequest: {
             /** Name */
             name: string;
-            kind: components["schemas"]["ProviderKind"];
-            /** Model */
-            model: string;
-            /** Base Url */
-            base_url?: string | null;
-            /** Api Key */
-            api_key?: string | null;
-            /** Api Key Header */
-            api_key_header?: string | null;
-            /**
-             * Is Default
-             * @default false
-             */
-            is_default: boolean;
-            /**
-             * Clear Api Key
-             * @default false
-             */
-            clear_api_key: boolean;
         };
         /** SubscribeFeedRequest */
         SubscribeFeedRequest: {
@@ -681,55 +765,6 @@ export interface components {
             /** Model */
             model: string;
         };
-        /** TranslationRequest */
-        TranslationRequest: {
-            /** Entry Id */
-            entry_id: string;
-            /** Target Lang */
-            target_lang: string;
-            /** Provider */
-            provider?: string | null;
-            /** Model */
-            model?: string | null;
-        };
-        /** TranslationResult */
-        TranslationResult: {
-            /** Entry Id */
-            entry_id: string;
-            /** Target Lang */
-            target_lang: string;
-            /** Translation Html */
-            translation_html: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "idle" | "queued" | "running" | "success" | "failure" | "cancelled";
-            /** Provider */
-            provider: string;
-            /** Model */
-            model: string;
-        };
-        /** ProviderSummary */
-        ProviderSummary: {
-            /** Name */
-            name: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "openai_compatible" | "anthropic" | "ollama";
-            /** Model */
-            model: string;
-            /** Base Url */
-            base_url?: string | null;
-            /** Api Key Header */
-            api_key_header?: string | null;
-            /** Is Default */
-            is_default: boolean;
-            /** Has Api Key */
-            has_api_key: boolean;
-        };
         /** SyncResult */
         SyncResult: {
             /** Feed Id */
@@ -764,6 +799,52 @@ export interface components {
             /** Unread Count */
             unread_count: number;
         };
+        /** TranslationRequest */
+        TranslationRequest: {
+            /** Entry Id */
+            entry_id: string;
+            /** Target Lang */
+            target_lang: string;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+        };
+        /** TranslationResult */
+        TranslationResult: {
+            /** Entry Id */
+            entry_id: string;
+            /** Target Lang */
+            target_lang: string;
+            /** Translation Html */
+            translation_html: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "idle" | "queued" | "running" | "success" | "failure" | "cancelled";
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+        };
+        /** UpdateProviderRequest */
+        UpdateProviderRequest: {
+            /** Name */
+            name: string;
+            /** Kind */
+            kind?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Api Key */
+            api_key?: string | null;
+            /** Api Key Header */
+            api_key_header?: string | null;
+            /** Is Default */
+            is_default?: boolean | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -776,6 +857,19 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WebPageResponse */
+        WebPageResponse: {
+            /** Article Id */
+            article_id: string;
+            /** Url */
+            url: string;
+            /** Final Url */
+            final_url: string;
+            /** Content Type */
+            content_type?: string | null;
+            /** Html */
+            html: string;
         };
     };
     responses: never;
@@ -1058,7 +1152,7 @@ export interface operations {
             };
         };
     };
-    get_providers_providers_get: {
+    get_providers_providers__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1073,12 +1167,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProviderSummaryResponse"][];
+                    "application/json": components["schemas"]["ProviderSummary"][];
                 };
             };
         };
     };
-    create_provider_providers_post: {
+    create_provider_providers__post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1087,7 +1181,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProviderUpsertRequest"];
+                "application/json": components["schemas"]["CreateProviderRequest"];
             };
         };
         responses: {
@@ -1097,7 +1191,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProviderSummaryResponse"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -1111,18 +1207,49 @@ export interface operations {
             };
         };
     };
-    edit_provider_providers__provider_name__put: {
+    get_provider_by_name_providers__name__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                provider_name: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSummary"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_provider_by_name_providers__name__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProviderUpsertRequest"];
+                "application/json": components["schemas"]["UpdateProviderRequest"];
             };
         };
         responses: {
@@ -1132,7 +1259,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProviderSummaryResponse"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -1146,12 +1275,12 @@ export interface operations {
             };
         };
     };
-    delete_provider_providers__provider_name__delete: {
+    delete_provider_providers__name__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                provider_name: string;
+                name: string;
             };
             cookie?: never;
         };
@@ -1164,7 +1293,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: boolean;
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_default_provider_providers_default_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSummary"] | null;
+                };
+            };
+        };
+    };
+    set_default_provider_providers_default_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDefaultRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_provider_providers_test__name__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
                     };
                 };
             };
@@ -1396,6 +1613,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CleanContentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fetch_stored_web_page_content_entries__article_id__web_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebPageResponse"];
                 };
             };
             /** @description Validation Error */

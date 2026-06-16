@@ -57,6 +57,7 @@ import {
   getApiErrorMessage,
   requestTranslation
 } from "./services/api";
+import { openExternalUrl } from "./services/desktop";
 import { readStoredBoolean, readStoredNumber, writeStoredBoolean, writeStoredNumber } from "./services/storage";
 
 const maxSidebarTags = 5;
@@ -1002,7 +1003,45 @@ function ReaderDetail(props: {
   const articleHtml = translationMode === "translation" && entry.translationHtml
     ? renderBilingualMarkdown(entry.translationHtml)
     : entry.readerHtml;
-  const webHtml = entry.webPreview.trim().startsWith("<") ? entry.webPreview : articleHtml;
+  const webUrl = normalizeWebUrl(entry.url);
+
+  function openEntryExternally() {
+    if (!webUrl) {
+      props.onNotice(t("webPageUnavailable"));
+      return;
+    }
+    void openExternalUrl(webUrl).catch((error) => {
+      props.onNotice(error instanceof Error ? error.message : t("requestFailed"));
+    });
+  }
+
+  function handleReaderArticleClick(event: React.MouseEvent<HTMLElement>) {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const link = target.closest("a[href]");
+    if (!(link instanceof HTMLAnchorElement) || !event.currentTarget.contains(link)) {
+      return;
+    }
+
+    const href = link.getAttribute("href")?.trim();
+    if (!href || href.startsWith("#")) {
+      return;
+    }
+
+    event.preventDefault();
+    const resolvedUrl = resolveExternalUrl(href, webUrl ?? "");
+    if (!resolvedUrl) {
+      props.onNotice(t("webPageUnavailable"));
+      return;
+    }
+
+    void openExternalUrl(resolvedUrl).catch((error) => {
+      props.onNotice(error instanceof Error ? error.message : t("requestFailed"));
+    });
+  }
 
   async function toggleTranslation() {
     if (!entry) {
@@ -1137,7 +1176,7 @@ function ReaderDetail(props: {
           icon={<Share2 size={17} aria-hidden />}
           items={[
             { label: t("copyLink"), action: () => void navigator.clipboard?.writeText(entry.url) },
-            { label: t("openBrowser"), action: () => window.open(entry.url, "_blank", "noopener") },
+            { label: t("openBrowser"), action: openEntryExternally },
             { label: t("shareDigest"), action: () => props.onModal({ type: "shareDigest", entryId: entry.id, exportMode: "share" }) },
             { label: t("exportDigest"), action: () => props.onModal({ type: "shareDigest", entryId: entry.id, exportMode: "single" }) }
           ]}
@@ -1187,6 +1226,7 @@ function ReaderDetail(props: {
         {showReader && (
           <article
             className={`reader-article theme-${state.theme.preset} font-${state.theme.fontFamily}`}
+            onClick={handleReaderArticleClick}
             style={{
               fontSize: state.theme.fontSize,
               lineHeight: state.theme.lineHeight,
@@ -1201,16 +1241,27 @@ function ReaderDetail(props: {
               <button type="button" className="icon-button" onClick={() => void navigator.clipboard?.writeText(entry.url)} title={t("copyUrl")}>
                 <Copy size={15} aria-hidden />
               </button>
-              <span>{entry.url}</span>
+              <span>{webUrl}</span>
+              <button type="button" className="icon-button" onClick={openEntryExternally} title={t("openBrowser")}>
+                <ExternalLink size={15} aria-hidden />
+              </button>
             </div>
-            <article
-              className={`web-preview-article theme-${state.theme.preset} font-${state.theme.fontFamily}`}
-              style={{
-                fontSize: state.theme.fontSize,
-                lineHeight: state.theme.lineHeight
-              }}
-              dangerouslySetInnerHTML={{ __html: webHtml }}
-            />
+            {webUrl ? (
+              <iframe
+                className="web-preview-frame"
+                title={entry.title}
+                sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+                src={webUrl}
+              />
+            ) : (
+              <div className="web-preview web-preview-state">
+                <ExternalLink size={24} aria-hidden />
+                <h3>{t("webPageUnavailable")}</h3>
+                <button type="button" disabled={!entry.url.trim()} onClick={openEntryExternally}>
+                  {t("openBrowser")}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2324,6 +2375,28 @@ function formatDate(value: string): string {
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeWebUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveExternalUrl(href: string, baseUrl: string): string | null {
+  try {
+    const url = new URL(href, baseUrl);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function escapeHtml(value: string): string {

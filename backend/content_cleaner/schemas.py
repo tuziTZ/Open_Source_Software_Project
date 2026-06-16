@@ -16,3 +16,11 @@ class CleanContentResponse(BaseModel):
     content_hash: str | None = None
     word_count: int
     reading_time_minutes: int
+
+
+class WebPageResponse(BaseModel):
+    article_id: str
+    url: str
+    final_url: str
+    content_type: str | None = None
+    html: str

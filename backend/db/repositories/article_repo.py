@@ -151,7 +151,10 @@ def list_articles(
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)
 
-    sql += " ORDER BY articles.published_at DESC, articles.created_at DESC LIMIT ? OFFSET ?"
+    sql += """
+        ORDER BY articles.published_at DESC, articles.created_at DESC, articles.id ASC
+        LIMIT ? OFFSET ?
+    """
     params.extend([limit, offset])
 
     with connection(db_path) as conn:
@@ -351,7 +354,7 @@ def search_articles(
                 LIMIT 1
             )
         WHERE article_fts MATCH ?
-        ORDER BY articles.published_at DESC, articles.created_at DESC
+        ORDER BY articles.published_at DESC, articles.created_at DESC, articles.id ASC
         LIMIT ? OFFSET ?
     """
     with connection(db_path) as conn:
@@ -406,7 +409,7 @@ def search_articles(
                 WHERE articles.title LIKE ?
                     OR articles.summary LIKE ?
                     OR article_search.plain_text LIKE ?
-                ORDER BY articles.published_at DESC, articles.created_at DESC
+                ORDER BY articles.published_at DESC, articles.created_at DESC, articles.id ASC
                 LIMIT ? OFFSET ?
                 """,
                 (like_keyword, like_keyword, like_keyword, limit, offset),

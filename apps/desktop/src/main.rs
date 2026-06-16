@@ -20,6 +20,7 @@ const HEALTHCHECK_INTERVAL: Duration = Duration::from_millis(250);
 fn main() {
     tauri::Builder::default()
         .manage(BackendState(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![open_external_url])
         .setup(|app| {
             // Anything that can fail is handled here so we never let an error
             // propagate out of the setup hook (that would abort() the process
@@ -42,6 +43,31 @@ fn main() {
                 kill_backend(app_handle);
             }
         });
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+        return Err("only HTTP(S) URLs can be opened externally".to_string());
+    }
+
+    let status = if cfg!(target_os = "windows") {
+        Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", trimmed])
+            .status()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open").arg(trimmed).status()
+    } else {
+        Command::new("xdg-open").arg(trimmed).status()
+    }
+    .map_err(|err| err.to_string())?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("failed to open URL externally: {status}"))
+    }
 }
 
 fn start_backend_and_window(app: &tauri::App) -> Result<(), String> {
