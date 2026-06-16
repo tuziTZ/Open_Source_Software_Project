@@ -206,7 +206,14 @@ def clean_stored_article(article_id: str) -> CleanContentResponse:
 
 def fetch_entry_web_page(article_id: str, timeout_seconds: float = 15.0) -> WebPageResponse:
     """Fetch the article's canonical URL and return HTML suitable for iframe srcDoc."""
-    entry = get_article(article_id)
+    try:
+        entry = get_article(article_id)
+    except sqlite3.OperationalError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Article '{article_id}' not found",
+        ) from err
+
     if entry is None:
         raise HTTPException(
             status_code=404,
